@@ -1,20 +1,14 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { db } from "@/lib/firebase";
+import { useFirestore, useMemoFirebase, useCollection } from "@/firebase";
 import { 
   collection, 
   query, 
-  where, 
   orderBy, 
-  onSnapshot, 
   doc, 
   updateDoc, 
-  getDocs,
-  Timestamp,
-  limit,
-  startAt,
-  endAt
+  limit
 } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,8 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { 
   Users, 
-  Calendar, 
-  Clock, 
   Search, 
   ShieldAlert, 
   Menu, 
@@ -46,9 +38,8 @@ import { cn } from "@/lib/utils";
 
 export default function AdminDashboard() {
   const { profile, logout } = useAuth();
+  const db = useFirestore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [users, setUsers] = useState<any[]>([]);
-  const [visits, setVisits] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [stats, setStats] = useState({
     today: 0,
@@ -56,43 +47,30 @@ export default function AdminDashboard() {
     month: 0
   });
 
+  const usersQuery = useMemoFirebase(() => collection(db, "users"), [db]);
+  const { data: users = [] } = useCollection(usersQuery);
+
+  const visitsQuery = useMemoFirebase(() => query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(100)), [db]);
+  const { data: visits = [] } = useCollection(visitsQuery);
+
   useEffect(() => {
-    if (!profile) return;
+    if (!visits) return;
 
-    // Users Collection Listener
-    const usersUnsub = onSnapshot(collection(db, "users"), (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const now = new Date();
+    const startOfDay = new Date(now.setHours(0,0,0,0));
+    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const todayCount = (visits || []).filter(v => v.timestamp?.toDate() >= startOfDay).length;
+    const weekCount = (visits || []).filter(v => v.timestamp?.toDate() >= startOfWeek).length;
+    const monthCount = (visits || []).filter(v => v.timestamp?.toDate() >= startOfMonth).length;
+
+    setStats({
+      today: todayCount,
+      week: weekCount,
+      month: monthCount
     });
-
-    // Recent Visits Listener (Global)
-    const visitsQuery = query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(50));
-    const visitsUnsub = onSnapshot(visitsQuery, (snapshot) => {
-      const allVisits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setVisits(allVisits);
-
-      // Simple stats calculation for global visits
-      const now = new Date();
-      const startOfDay = new Date(now.setHours(0,0,0,0));
-      const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-      // Filtering visits for stats
-      const todayCount = allVisits.filter(v => v.timestamp?.toDate() >= startOfDay).length;
-      const weekCount = allVisits.filter(v => v.timestamp?.toDate() >= startOfWeek).length;
-      const monthCount = allVisits.filter(v => v.timestamp?.toDate() >= startOfMonth).length;
-
-      setStats({
-        today: todayCount,
-        week: weekCount,
-        month: monthCount
-      });
-    });
-
-    return () => {
-      usersUnsub();
-      visitsUnsub();
-    };
-  }, [profile]);
+  }, [visits]);
 
   const toggleBlockUser = async (userId: string, currentStatus: boolean) => {
     if (profile?.role !== 'admin') return;
@@ -105,8 +83,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredUsers = (users || []).filter(user => 
+    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
     user.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 

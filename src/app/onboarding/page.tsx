@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { db } from "@/lib/firebase";
+import { useFirestore } from "@/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -30,6 +30,7 @@ const COLLEGES = [
 
 export default function OnboardingPage() {
   const { profile, loading } = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
 

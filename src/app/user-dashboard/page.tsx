@@ -1,8 +1,8 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, getDocs } from "firebase/firestore";
+import { useFirestore, useMemoFirebase, useCollection } from "@/firebase";
+import { collection, addDoc, serverTimestamp, query, where, orderBy } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,50 +29,44 @@ const REASONS = [
 
 export default function UserDashboard() {
   const { profile, logout } = useAuth();
+  const db = useFirestore();
   const [showWelcome, setShowWelcome] = useState(false);
-  const [visits, setVisits] = useState<any[]>([]);
+  
+  const visitsQuery = useMemoFirebase(() => {
+    if (!profile) return null;
+    return query(
+      collection(db, "visits"),
+      where("userId", "==", profile.uid),
+      orderBy("timestamp", "desc")
+    );
+  }, [db, profile]);
+
+  const { data: visits = [] } = useCollection(visitsQuery);
+
   const [stats, setStats] = useState({ totalVisits: 0, favoriteReason: "N/A" });
 
   useEffect(() => {
-    if (!profile) return;
+    if (!visits) return;
 
-    const q = query(
-      collection(db, "visits"),
-      where("uid", "==", profile.uid),
-      orderBy("timestamp", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const visitData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setVisits(visitData);
-
-      // Simple Stats Logic
-      const counts: Record<string, number> = {};
-      visitData.forEach((v: any) => {
-        counts[v.reason] = (counts[v.reason] || 0) + 1;
-      });
-      const topReason = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-
-      setStats({
-        totalVisits: visitData.length,
-        favoriteReason: topReason ? topReason[0] : "N/A"
-      });
+    // Simple Stats Logic
+    const counts: Record<string, number> = {};
+    visits.forEach((v: any) => {
+      counts[v.reason] = (counts[v.reason] || 0) + 1;
     });
+    const topReason = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
 
-    return () => unsubscribe();
-  }, [profile]);
+    setStats({
+      totalVisits: visits.length,
+      favoriteReason: topReason ? topReason[0] : "N/A"
+    });
+  }, [visits]);
 
   const logVisit = async (reason: string) => {
     if (!profile) return;
     
     try {
       await addDoc(collection(db, "visits"), {
-        uid: profile.uid,
-        userEmail: profile.email,
-        userCollege: profile.college,
+        userId: profile.uid,
         timestamp: serverTimestamp(),
         reason: reason,
       });
@@ -187,7 +181,7 @@ export default function UserDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visits.length > 0 ? (
+                {visits && visits.length > 0 ? (
                   visits.map((visit) => (
                     <TableRow key={visit.id} className="hover:bg-gray-50/50">
                       <TableCell className="font-medium">

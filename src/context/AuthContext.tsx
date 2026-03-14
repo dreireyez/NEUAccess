@@ -2,13 +2,13 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { 
-  onAuthStateChanged, 
   signInWithPopup, 
   signOut, 
-  User as FirebaseUser 
+  User as FirebaseUser,
+  GoogleAuthProvider
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db, googleProvider } from "@/lib/firebase";
+import { useAuth as useFirebaseAuth, useFirestore, useUser } from "@/firebase";
 import { useRouter, usePathname } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,9 +33,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const { auth } = useFirebaseAuth();
+  const db = useFirestore();
+  const { user: firebaseUser, isUserLoading } = useUser();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
@@ -43,13 +45,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await signOut(auth);
     setProfile(null);
-    setUser(null);
     router.push("/");
   };
 
   const signIn = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
       if (!user.email?.endsWith("@neu.edu.ph")) {
@@ -61,13 +63,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Sign in error", error);
+      toast({
+        title: "Sign-in Failed",
+        description: error.message || "An error occurred during sign-in.",
+        variant: "destructive",
+      });
     }
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    async function checkProfile() {
       if (firebaseUser) {
         if (!firebaseUser.email?.endsWith("@neu.edu.ph")) {
           await logout();
@@ -82,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!userSnap.exists()) {
           userProfile = {
             uid: firebaseUser.uid,
-            email: firebaseUser.email,
+            email: firebaseUser.email!,
             role: "user",
             college: null,
             isBlocked: false,
@@ -107,12 +114,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        setUser(firebaseUser);
         setProfile(userProfile);
 
         // Routing Logic
         if (userProfile.college === null) {
-          router.push("/onboarding");
+          if (pathname !== "/onboarding") {
+            router.push("/onboarding");
+          }
         } else if (userProfile.role === "user") {
           if (pathname === "/" || pathname === "/onboarding") {
             router.push("/user-dashboard");
@@ -123,20 +131,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } else {
-        setUser(null);
         setProfile(null);
-        if (pathname !== "/") {
+        if (pathname !== "/" && !isUserLoading) {
           router.push("/");
         }
       }
-      setLoading(false);
-    });
+      setIsProfileLoading(false);
+    }
 
-    return () => unsubscribe();
-  }, [pathname]);
+    if (!isUserLoading) {
+      checkProfile();
+    }
+  }, [firebaseUser, isUserLoading, pathname, db, auth]);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, logout }}>
+    <AuthContext.Provider value={{ 
+      user: firebaseUser, 
+      profile, 
+      loading: isUserLoading || isProfileLoading, 
+      signIn, 
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   );
