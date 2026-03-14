@@ -62,17 +62,19 @@ export default function AdminDashboard() {
     month: 0
   });
 
-  // Verify "Real" Authorization from the segregation collections
-  // This prevents the permission error when role is set in profile but doc is missing in roles_admin/staff
+  // 1. Verify specific Backend Authorization via the segregation collections
   const adminDocRef = useMemoFirebase(() => user ? doc(db, "roles_admin", user.uid) : null, [db, user]);
   const staffDocRef = useMemoFirebase(() => user ? doc(db, "roles_staff", user.uid) : null, [db, user]);
   
   const { data: adminDoc, isLoading: checkingAdmin } = useDoc(adminDocRef);
   const { data: staffDoc, isLoading: checkingStaff } = useDoc(staffDocRef);
 
+  // 2. Determine if user is truly provisioned in roles collections
   const isProvisioned = !!(adminDoc || staffDoc);
   const isProfileAdmin = profile?.role === 'admin' || profile?.role === 'staff';
-  const isActuallyAuthorized = isProfileAdmin && isProvisioned;
+  
+  // 3. Strict guard: only fire global queries if both profile and provisioning are verified
+  const isActuallyAuthorized = !loading && !checkingAdmin && !checkingStaff && isProfileAdmin && isProvisioned;
 
   // Data Queries - strictly guarded by backend-verified authorization
   const usersQuery = useMemoFirebase(() => {
@@ -84,16 +86,17 @@ export default function AdminDashboard() {
 
   const visitsQuery = useMemoFirebase(() => {
     if (!isActuallyAuthorized) return null;
-    return query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(200));
+    return query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(500));
   }, [db, isActuallyAuthorized]);
   
   const { data: visits = [], isLoading: visitsLoading } = useCollection(visitsQuery);
 
   useEffect(() => {
-    if (!loading && !checkingAdmin && !checkingStaff && !isProfileAdmin) {
+    // Redirect non-admin users to their dashboard
+    if (!loading && !checkingAdmin && !checkingStaff && profile && profile.role === 'user') {
       router.push("/user-dashboard");
     }
-  }, [loading, checkingAdmin, checkingStaff, isProfileAdmin, router]);
+  }, [loading, checkingAdmin, checkingStaff, profile, router]);
 
   useEffect(() => {
     if (!visits || visits.length === 0) return;
@@ -132,12 +135,10 @@ export default function AdminDashboard() {
   const updateUserRole = async (userId: string, newRole: "admin" | "staff" | "user") => {
     if (profile?.role !== 'admin') return;
     try {
-      // 1. Update the role in the User document
       await updateDoc(doc(db, "users", userId), {
         role: newRole
       });
 
-      // 2. Sync with Authorization Segregation Collections
       const adminRef = doc(db, "roles_admin", userId);
       const staffRef = doc(db, "roles_staff", userId);
 
