@@ -16,7 +16,7 @@ export default function LoginPage() {
     <main className="flex flex-col md:flex-row h-screen w-full overflow-hidden">
       {/* Left/Top Section: Hero Image with Brand Overlay */}
       <div className="relative flex-1 h-[40vh] md:h-full w-full bg-[#0B3D73]">
-        {heroImage && (
+        {heroImage ? (
           <Image
             src={heroImage.imageUrl}
             alt={heroImage.description}
@@ -26,6 +26,8 @@ export default function LoginPage() {
             unoptimized
             data-ai-hint={heroImage.imageHint}
           />
+        ) : (
+          <div className="w-full h-full bg-slate-200 animate-pulse" />
         )}
         <div className="absolute inset-0 neu-gradient opacity-80 mix-blend-multiply" />
         <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-white text-center">
