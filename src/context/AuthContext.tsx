@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -151,17 +150,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setActiveVisitId(visitSnap.docs[0].id);
         }
 
-        // Routing Logic
+        // Updated Routing Logic: Admins can access both.
         if (userProfile.college === null) {
           if (pathname !== "/onboarding") {
             router.push("/onboarding");
           }
         } else if (userProfile.role === "user") {
+          // Force students to user-dashboard
           if (pathname === "/" || pathname === "/onboarding" || pathname === "/admin-dashboard") {
             router.push("/user-dashboard");
           }
         } else if (userProfile.role === "admin" || userProfile.role === "staff") {
-          if (pathname === "/" || pathname === "/onboarding" || pathname === "/user-dashboard") {
+          // Admins can stay on user-dashboard OR admin-dashboard.
+          if (pathname === "/" || pathname === "/onboarding") {
             router.push("/admin-dashboard");
           }
         }

@@ -23,7 +23,7 @@
     --border: 212 82% 25% / 0.1;
     --input: 212 82% 25% / 0.2;
     --ring: 46 65% 52%;
-    --radius: 0.5rem;
+    --radius: 1rem;
   }
 }
 
@@ -32,10 +32,21 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground font-body antialiased;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline;
+  }
+}
+
+/* Hide scrollbars on mobile */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
@@ -44,7 +55,7 @@
 }
 
 .neu-button-gold {
-  @apply bg-[#D4AF37] text-white hover:bg-[#F2C94C] transition-colors duration-200;
+  @apply bg-[#D4AF37] text-white hover:bg-[#F2C94C] transition-all duration-200 active:scale-95;
 }
 
 .neu-text-blue {
@@ -53,4 +64,8 @@
 
 .neu-bg-blue {
   background-color: #0B3D73;
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
 }
