@@ -156,8 +156,12 @@ export default function UserDashboard() {
               <p className="text-sm font-black">{profile?.displayName}</p>
               <p className="text-[10px] opacity-70 font-bold">{profile?.college}</p>
             </div>
-            <Button variant="outline" onClick={logout} className="border-white/20 text-white hover:bg-white hover:text-[#0B3D73] rounded-2xl px-6 font-bold h-10">
-              <LogOut className="w-4 h-4 mr-2" /> Sign Out
+            <Button 
+              onClick={logout} 
+              className="bg-white text-[#0B3D73] hover:bg-rose-600 hover:text-white rounded-2xl px-6 font-bold h-10 transition-all border-none shadow-md flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" /> 
+              <span>Sign Out</span>
             </Button>
           </div>
         </div>
