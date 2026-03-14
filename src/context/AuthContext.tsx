@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -33,7 +34,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { auth } = useFirebaseAuth();
+  const auth = useFirebaseAuth();
   const db = useFirestore();
   const { user: firebaseUser, isUserLoading } = useUser();
   const [profile, setProfile] = useState<UserProfile | null>(null);
