@@ -5,130 +5,94 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user of the NEU Library Visitor App, storing their profile information and access rights.",
+      "description": "Represents a university member, storing their profile and institutional access role.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the User entity, corresponding to the Firebase Authentication UID."
+          "description": "Unique identifier (Firebase Auth UID)."
         },
         "email": {
           "type": "string",
-          "description": "The user's email address, strictly enforced to end with '@neu.edu.ph'.",
+          "description": "Institutional email (@neu.edu.ph).",
           "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's full name from Google Auth."
         },
         "role": {
           "type": "string",
-          "description": "The role of the user within the application, determining their access level. Possible values are 'admin', 'staff', or 'user' (default 'user')."
+          "enum": ["admin", "staff", "user"],
+          "description": "Access level: admin (full control), staff (logs access), user (student)."
         },
         "college": {
           "type": "string",
-          "description": "The academic college or school the user belongs to. This field is nullable (can be null) until selected during the onboarding process."
+          "description": "Academic college/department selected during onboarding."
         },
         "isBlocked": {
           "type": "boolean",
-          "description": "A flag indicating whether the user's access to the application is currently blocked by an administrator (default false)."
+          "description": "Administrative flag to prevent library access."
         }
       },
-      "required": [
-        "id",
-        "email",
-        "role",
-        "isBlocked"
-      ]
+      "required": ["id", "email", "role", "isBlocked"]
     },
     "Visit": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Visit",
       "type": "object",
-      "description": "Records an instance of a user's visit to the NEU Library, including time-in, time-out, and multiple purposes.",
+      "description": "A single library visit record from time-in to time-out.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Visit entity."
+          "description": "Unique Visit ID."
         },
         "userId": {
           "type": "string",
-          "description": "Reference to the User who made the visit."
+          "description": "UID of the visiting member."
         },
         "timeIn": {
           "type": "string",
-          "description": "The timestamp when the user timed in.",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Timestamp of entry."
         },
         "timeOut": {
           "type": "string",
-          "description": "The timestamp when the user timed out (signed out).",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Timestamp of exit (null if active)."
         },
         "reasons": {
           "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "A list of purposes selected for the visit."
+          "items": { "type": "string" },
+          "description": "List of purposes selected (e.g., Reading, Research)."
         },
         "status": {
           "type": "string",
           "enum": ["active", "completed"],
-          "description": "The current status of the visit."
+          "description": "Current state of the visit."
         }
       },
-      "required": [
-        "id",
-        "userId",
-        "timeIn",
-        "reasons",
-        "status"
-      ]
+      "required": ["id", "userId", "timeIn", "reasons", "status"]
     }
   },
   "auth": {
-    "providers": [
-      "google.com"
-    ]
+    "providers": ["google.com"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores individual user profiles."
-        }
-      },
-      {
-        "path": "/visits/{visitId}",
-        "definition": {
-          "entityName": "Visit",
-          "schema": {
-            "$ref": "#/backend/entities/Visit"
-          },
-          "description": "Records individual library visits with time-in/out and multi-select reasons."
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Admin role lookup."
-        }
-      },
-      {
-        "path": "/roles_staff/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Staff role lookup."
-        }
-      }
-    ]
+    "/users/{userId}": {
+      "schema": { "$ref": "#/backend/entities/User" },
+      "description": "Profiles of university members."
+    },
+    "/visits/{visitId}": {
+      "schema": { "$ref": "#/backend/entities/Visit" },
+      "description": "Historical and active library visit logs."
+    },
+    "/roles_admin/{userId}": {
+      "schema": { "type": "object" },
+      "description": "Lookup for administrative privileges."
+    },
+    "/roles_staff/{userId}": {
+      "schema": { "type": "object" },
+      "description": "Lookup for library staff privileges."
+    }
   }
 }
