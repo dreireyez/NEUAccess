@@ -12,7 +12,6 @@ import {
   limit,
   setDoc,
   deleteDoc,
-  where
 } from "firebase/firestore";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -309,10 +308,10 @@ export default function AdminDashboard() {
             <Button 
               variant="outline" 
               onClick={logout} 
-              className="group w-full h-12 border-white/10 text-white hover:bg-white hover:text-[#0B3D73] rounded-2xl font-bold transition-all"
+              className="w-full h-12 border-white/10 text-white hover:bg-rose-600 hover:border-rose-600 hover:text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
             >
               <LogOut className="w-4 h-4" /> 
-              <span className="ml-2 overflow-hidden opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap">Sign Out</span>
+              <span>Sign Out</span>
             </Button>
           </div>
         </div>
@@ -435,7 +434,7 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUsers.map(u => (
+                    {(filteredUsers || []).map(u => (
                       <TableRow key={u.id}>
                         <TableCell className="pl-8 py-4">
                           <div className="flex items-center gap-3">
@@ -498,7 +497,7 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredVisits.map((v: any) => (
+                    {(filteredVisits || []).map((v: any) => (
                       <TableRow key={v.id}>
                         <TableCell className="pl-8 py-4"><p className="text-sm font-bold text-slate-800">{v.timeIn?.toDate()?.toLocaleString() || 'N/A'}</p></TableCell>
                         <TableCell className="font-mono text-[10px] text-slate-400">{v.userId}</TableCell>
