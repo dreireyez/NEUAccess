@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
@@ -13,7 +14,7 @@ export default function LoginPage() {
 
   return (
     <main className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white">
-      {/* Left Section: Hero Image (Hidden on small mobile if desired, but here kept for visual) */}
+      {/* Left Section: Hero Image */}
       <div className="relative flex-[1.2] hidden md:block h-full w-full bg-[#0B3D73]">
         {heroImage ? (
           <Image

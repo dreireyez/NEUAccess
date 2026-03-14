@@ -161,14 +161,19 @@ export default function AdminDashboard() {
       const date = v.timeIn.toDate();
       let key = "";
 
-      if (timeRange === "hourly") key = date.toLocaleTimeString([], { hour: '2-digit', minute: '00' });
-      else if (timeRange === "daily") key = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-      else if (timeRange === "weekly") {
+      if (timeRange === "hourly") {
+        key = date.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+      } else if (timeRange === "daily") {
+        key = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      } else if (timeRange === "weekly") {
         const start = new Date(date);
         start.setDate(date.getDate() - date.getDay());
         key = `Week of ${start.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
-      } else if (timeRange === "monthly") key = date.toLocaleDateString([], { month: 'long' });
-      else if (timeRange === "yearly") key = date.getFullYear().toString();
+      } else if (timeRange === "monthly") {
+        key = date.toLocaleDateString([], { month: 'long' });
+      } else if (timeRange === "yearly") {
+        key = date.getFullYear().toString();
+      }
 
       if (key) groupedData[key] = (groupedData[key] || 0) + 1;
     });
