@@ -3,13 +3,13 @@
     {
       "id": "university-logo",
       "description": "The official logo of New Era University",
-      "imageUrl": "https://picsum.photos/seed/neu-logo/200/200",
+      "imageUrl": "/img/neu-50years.png",
       "imageHint": "university logo"
     },
     {
       "id": "login-hero",
       "description": "NEU University Building Hero Image",
-      "imageUrl": "https://picsum.photos/seed/neu-lib/1200/800",
+      "imageUrl": "/img/NEU_background.jpg",
       "imageHint": "university building"
     }
   ]
