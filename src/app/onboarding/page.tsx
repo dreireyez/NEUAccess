@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
@@ -38,7 +39,7 @@ export default function OnboardingPage() {
     if (!profile) return;
     setIsUpdating(true);
     try {
-      await updateDoc(doc(db, "users", profile.uid), {
+      await updateDoc(doc(db, "users", profile.id), {
         college: college,
       });
       router.push("/user-dashboard");

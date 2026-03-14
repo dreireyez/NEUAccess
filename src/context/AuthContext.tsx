@@ -14,7 +14,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 interface UserProfile {
-  uid: string;
+  id: string; // Changed from uid to id to match schema/rules
   email: string;
   role: "admin" | "staff" | "user";
   college: string | null;
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!userSnap.exists()) {
           userProfile = {
-            uid: firebaseUser.uid,
+            id: firebaseUser.uid,
             email: firebaseUser.email!,
             role: "user",
             college: null,
@@ -97,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             displayName: firebaseUser.displayName || "Student",
             photoURL: firebaseUser.photoURL || "",
           };
+          // Security rules require 'id' field for 'create' operation
           await setDoc(userRef, {
             ...userProfile,
             createdAt: serverTimestamp(),

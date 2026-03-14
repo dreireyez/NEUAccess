@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
@@ -36,7 +37,7 @@ export default function UserDashboard() {
     if (!profile) return null;
     return query(
       collection(db, "visits"),
-      where("userId", "==", profile.uid),
+      where("userId", "==", profile.id),
       orderBy("timestamp", "desc")
     );
   }, [db, profile]);
@@ -66,7 +67,7 @@ export default function UserDashboard() {
     
     try {
       await addDoc(collection(db, "visits"), {
-        userId: profile.uid,
+        userId: profile.id,
         timestamp: serverTimestamp(),
         reason: reason,
       });
