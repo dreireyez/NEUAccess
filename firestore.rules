@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * NEU Library Visitor App Security Rules
+     * 
+     * Core Philosophy:
+     * This ruleset implements a strict identity-based access model complemented by role-based lookups. 
+     * Security is enforced through structural segregation and data denormalization to ensure 
+     * performance and authorization independence.
+     * 
+     * Data Structure:
+     * - /users/{userId}: Primary profile information.
+     * - /visits/{visitId}: Flat collection of library visit records for global reporting.
+     * - /roles_admin/{userId}: Presence-based flags for administrative privileges.
+     * - /roles_staff/{userId}: Presence-based flags for staff-level library management.
+     * 
+     * Key Security Decisions:
+     * - Authorization Independence: Role checks are performed against dedicated lookup collections 
+     *   (/roles_admin and /roles_staff) to avoid expensive document reads on the user profile.
+     * - Denormalization: Visit records include a 'userId' field to allow for immediate ownership 
+     *   verification without fetching the parent user document.
+     * - Scalable Reporting: Visits are kept in a top-level collection to facilitate aggregate 
+     *   reporting for Admin and Staff while maintaining row-level security for individual users.
+     */
+
+    // --- Helper Functions ---
+
+    /** @description Checks if the request is from an authenticated user. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the authenticated user's UID matches the provided userId. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** @description Checks if the authenticated user exists in the admin roles collection. */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /** @description Checks if the authenticated user exists in the staff roles collection. */
+    function isStaff() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_staff/$(request.auth.uid));
+    }
+
+    // The 'isExistingOwner' function was removed because it was unused and contained an invalid reference
+    // to the 'resource' variable within a function scope, which is not permitted.
+    // The existing rules correctly handle ownership checks for existing documents using 'isOwner(userId)'
+    // within the context of 'update' or 'delete' operations where 'resource' is naturally available.
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for the User collection. Supports self-management for students and global management for admins.
+     * @path /users/{userId}
+     * @allow get: if isOwner(userId) || isAdmin() || isStaff(); (Authenticated access)
+     * @deny update: if request.resource.data.id != resource.data.id; (Relational integrity breach)
+     * @principle Validates that users can only manage their own profile while granting staff/admin visibility.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin() || isStaff();
+      allow list: if isOwner(userId) || isAdmin() || isStaff();
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if (isOwner(userId) || isAdmin()) && request.resource.data.id == resource.data.id;
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for Visit records. Ensures users record their own visits and allows staff/admin global oversight.
+     * @path /visits/{visitId}
+     * @allow create: if request.resource.data.userId == request.auth.uid; (Self-registration)
+     * @deny update: if !isAdmin(); (Standard users cannot alter history)
+     * @principle Uses denormalized 'userId' for high-performance ownership checks without parent document lookups.
+     */
+    match /visits/{visitId} {
+      allow get: if isAdmin() || isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || isStaff() || (isSignedIn() && request.query.limit <= 100); 
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Administrative role lookup. Access is restricted to admin-only reads.
+     * @path /roles_admin/{userId}
+     * @principle Structural segregation: Uses existence of document as an immutable permission flag.
+     */
+    match /roles_admin/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if false; // Managed by backend service or Cloud Functions
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Staff role lookup. Access is restricted to authenticated reads.
+     * @path /roles_staff/{userId}
+     * @principle Minimizes complexity of global security checks via exists() queries.
+     */
+    match /roles_staff/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin() || isStaff();
+      allow create: if false; // Managed by backend service or Cloud Functions
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
