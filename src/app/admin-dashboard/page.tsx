@@ -32,6 +32,7 @@ import {
   MoreVertical,
   Filter,
   TrendingUp,
+  BookOpen,
 } from "lucide-react";
 import { 
   Table, 
@@ -67,6 +68,7 @@ import {
 } from 'recharts';
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 
 const COLLEGES = [
@@ -295,9 +297,22 @@ export default function AdminDashboard() {
               </button>
             ))}
           </nav>
-          <div className="p-6 border-t border-white/10">
-            <Button variant="outline" onClick={logout} className="w-full h-12 border-white/10 text-white hover:bg-white hover:text-[#0B3D73] rounded-xl font-bold">
-              <LogOut className="w-4 h-4 mr-2" /> Sign Out
+          
+          <div className="p-6 border-t border-white/10 space-y-4">
+            <Link href="/user-dashboard">
+              <Button variant="ghost" className="w-full h-12 text-white/60 hover:text-white hover:bg-white/5 rounded-2xl font-bold justify-start px-6 gap-3">
+                <BookOpen className="w-5 h-5 text-[#D4AF37]" />
+                Student View
+              </Button>
+            </Link>
+            
+            <Button 
+              variant="outline" 
+              onClick={logout} 
+              className="group w-full h-12 border-white/10 text-white hover:bg-white hover:text-[#0B3D73] rounded-2xl font-bold transition-all"
+            >
+              <LogOut className="w-4 h-4" /> 
+              <span className="ml-2 overflow-hidden opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap">Sign Out</span>
             </Button>
           </div>
         </div>
