@@ -101,14 +101,14 @@ export default function AdminDashboard() {
     return collection(db, "users");
   }, [db, isActuallyAuthorized]);
   
-  const { data: usersList = [], isLoading: usersLoading } = useCollection(usersQuery);
+  const { data: usersList, isLoading: usersLoading } = useCollection(usersQuery);
 
   const visitsQuery = useMemoFirebase(() => {
     if (!isActuallyAuthorized) return null;
     return query(collection(db, "visits"), orderBy("timeIn", "desc"), limit(500));
   }, [db, isActuallyAuthorized]);
   
-  const { data: visitsList = [], isLoading: visitsLoading } = useCollection(visitsQuery);
+  const { data: visitsList, isLoading: visitsLoading } = useCollection(visitsQuery);
 
   useEffect(() => {
     if (!loading && !checkingAdmin && !checkingStaff && profile && profile.role === 'user') {
@@ -117,15 +117,16 @@ export default function AdminDashboard() {
   }, [loading, checkingAdmin, checkingStaff, profile, router]);
 
   useEffect(() => {
-    if (!visitsList || visitsList.length === 0) return;
+    const list = visitsList || [];
+    if (list.length === 0) return;
 
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
 
-    const todayCount = (visitsList || []).filter((v: any) => v.timeIn?.toDate && v.timeIn.toDate() >= startOfDay).length;
-    const weekCount = (visitsList || []).filter((v: any) => v.timeIn?.toDate && v.timeIn.toDate() >= startOfWeek).length;
-    const monthCount = visitsList.length;
+    const todayCount = list.filter((v: any) => v.timeIn?.toDate && v.timeIn.toDate() >= startOfDay).length;
+    const weekCount = list.filter((v: any) => v.timeIn?.toDate && v.timeIn.toDate() >= startOfWeek).length;
+    const monthCount = list.length;
 
     setStats({
       today: todayCount,
@@ -451,9 +452,9 @@ export default function AdminDashboard() {
                   <CardContent className="p-8">
                     <div className="space-y-6">
                       {[
-                        { label: "Active Users", count: usersList.filter(u => !u.isBlocked).length, color: "bg-emerald-500" },
-                        { label: "Blocked Accounts", count: usersList.filter(u => u.isBlocked).length, color: "bg-rose-500" },
-                        { label: "Staff Members", count: usersList.filter(u => u.role === 'staff').length, color: "bg-[#0B3D73]" },
+                        { label: "Active Users", count: (usersList || []).filter(u => !u.isBlocked).length, color: "bg-emerald-500" },
+                        { label: "Blocked Accounts", count: (usersList || []).filter(u => u.isBlocked).length, color: "bg-rose-500" },
+                        { label: "Staff Members", count: (usersList || []).filter(u => u.role === 'staff').length, color: "bg-[#0B3D73]" },
                       ].map((item, i) => (
                         <div key={i} className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
@@ -588,7 +589,7 @@ export default function AdminDashboard() {
             <Card className="rounded-3xl border-none shadow-xl overflow-hidden">
               <div className="p-8 border-b border-slate-50 flex items-center justify-between">
                 <h3 className="text-xl font-black text-[#0B3D73] font-headline">Visit Master Log</h3>
-                <p className="text-xs text-slate-400 font-bold uppercase">{visitsList.length} Records</p>
+                <p className="text-xs text-slate-400 font-bold uppercase">{(visitsList || []).length} Records</p>
               </div>
               <div className="overflow-x-auto">
                 <Table>
@@ -602,7 +603,7 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {visitsList.map((v: any) => (
+                    {(visitsList || []).map((v: any) => (
                       <TableRow key={v.id} className="border-slate-50">
                         <TableCell className="pl-8 py-6">
                            <p className="text-sm font-bold text-slate-800">

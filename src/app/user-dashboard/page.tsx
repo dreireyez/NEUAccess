@@ -59,18 +59,19 @@ export default function UserDashboard() {
     );
   }, [db, profile]);
 
-  const { data: visits = [] } = useCollection(visitsQuery);
+  const { data: visits } = useCollection(visitsQuery);
 
   const [stats, setStats] = useState({ totalVisits: 0, favoriteReason: "N/A" });
 
   useEffect(() => {
-    if (!visits || visits.length === 0) {
+    const list = visits || [];
+    if (list.length === 0) {
       setStats({ totalVisits: 0, favoriteReason: "N/A" });
       return;
     }
 
     const counts: Record<string, number> = {};
-    (visits || []).forEach((v: any) => {
+    list.forEach((v: any) => {
       if (Array.isArray(v.reasons)) {
         v.reasons.forEach((r: string) => {
           counts[r] = (counts[r] || 0) + 1;
@@ -84,7 +85,7 @@ export default function UserDashboard() {
     const topReason = sortedReasons.length > 0 ? sortedReasons[0][0] : "N/A";
 
     setStats({
-      totalVisits: (visits || []).filter((v: any) => v.status === 'completed').length,
+      totalVisits: list.filter((v: any) => v.status === 'completed').length,
       favoriteReason: topReason
     });
   }, [visits]);
