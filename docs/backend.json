@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -39,7 +40,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Visit",
       "type": "object",
-      "description": "Records an instance of a user's visit to the NEU Library, including the timestamp and reason for the visit.",
+      "description": "Records an instance of a user's visit to the NEU Library, including time-in, time-out, and multiple purposes.",
       "properties": {
         "id": {
           "type": "string",
@@ -47,31 +48,43 @@
         },
         "userId": {
           "type": "string",
-          "description": "Reference to the User who made the visit. (Relationship: User 1:N Visit)"
+          "description": "Reference to the User who made the visit."
         },
-        "timestamp": {
+        "timeIn": {
           "type": "string",
-          "description": "The date and time when the visit was recorded, typically a Firestore server timestamp in ISO 8601 format.",
+          "description": "The timestamp when the user timed in.",
           "format": "date-time"
         },
-        "reason": {
+        "timeOut": {
           "type": "string",
-          "description": "The specific purpose or reason for the user's library visit, selected from predefined options."
+          "description": "The timestamp when the user timed out (signed out).",
+          "format": "date-time"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A list of purposes selected for the visit."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "completed"],
+          "description": "The current status of the visit."
         }
       },
       "required": [
         "id",
         "userId",
-        "timestamp",
-        "reason"
+        "timeIn",
+        "reasons",
+        "status"
       ]
     }
   },
   "auth": {
     "providers": [
-      "google.com",
-      "password",
-      "anonymous"
+      "google.com"
     ]
   },
   "firestore": {
@@ -83,13 +96,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores individual user profiles. The document ID is the Firebase Authentication UID. Contains user details such as email, role, college, and 'isBlocked' status. Includes fields critical for client-side routing and display. Owners can read/update their own 'college' field. Admin users can update any 'isBlocked' or 'role' field.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user, matching the Firebase Authentication UID."
-            }
-          ]
+          "description": "Stores individual user profiles."
         }
       },
       {
@@ -99,13 +106,7 @@
           "schema": {
             "$ref": "#/backend/entities/Visit"
           },
-          "description": "Records individual library visits. Each document includes 'userId' (denormalized from the User entity for authorization independence and efficient querying), 'timestamp', and 'reason'. Allows users to write their own visits. Users can read/list their own visits based on 'userId'. Admin and Staff users have global read/list access to all visits.",
-          "params": [
-            {
-              "name": "visitId",
-              "description": "The unique identifier for the visit record."
-            }
-          ]
+          "description": "Records individual library visits with time-in/out and multi-select reasons."
         }
       },
       {
@@ -115,13 +116,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "A dedicated collection for robust, authorization-independent administration role checks. The existence of a document with a user's UID in this collection grants 'admin' privileges in security rules. No actual data is stored within the documents; their mere existence serves as an authorization flag.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who holds the 'admin' role, matching their Firebase Authentication UID."
-            }
-          ]
+          "description": "Admin role lookup."
         }
       },
       {
@@ -131,16 +126,9 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "A dedicated collection for robust, authorization-independent staff role checks. The existence of a document with a user's UID in this collection grants 'staff' privileges in security rules. No actual data is stored within the documents; their mere existence serves as an authorization flag.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who holds the 'staff' role, matching their Firebase Authentication UID."
-            }
-          ]
+          "description": "Staff role lookup."
         }
       }
-    ],
-    "reasoning": "The recommended Firestore structure is designed to adhere strictly to the core principles of Authorization Independence, Structural Segregation, and effective Access Modeling, ensuring a secure, scalable, and debuggable system."
+    ]
   }
 }

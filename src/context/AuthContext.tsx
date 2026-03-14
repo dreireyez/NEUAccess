@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -7,7 +8,7 @@ import {
   User as FirebaseUser,
   GoogleAuthProvider
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, limit } from "firebase/firestore";
 import { useAuth as useFirebaseAuth, useFirestore, useUser } from "@/firebase";
 import { useRouter, usePathname } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +29,8 @@ interface AuthContextType {
   loading: boolean;
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
+  activeVisitId: string | null;
+  setActiveVisitId: (id: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -37,12 +40,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const { user: firebaseUser, isUserLoading } = useUser();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [activeVisitId, setActiveVisitId] = useState<string | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
 
   const logout = async () => {
+    // Before signing out, check if there's an active visit to time out
+    if (activeVisitId) {
+      try {
+        const visitRef = doc(db, "visits", activeVisitId);
+        await updateDoc(visitRef, {
+          timeOut: serverTimestamp(),
+          status: "completed"
+        });
+        setActiveVisitId(null);
+      } catch (e) {
+        console.error("Error timing out visit during logout:", e);
+      }
+    }
+    
     await signOut(auth);
     setProfile(null);
     router.push("/");
@@ -87,8 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let userProfile: UserProfile;
 
         if (!userSnap.exists()) {
-          // STRICT: Initial role is ALWAYS "user".
-          // Admin must manually move documents to roles_admin/roles_staff to upgrade.
           userProfile = {
             id: firebaseUser.uid,
             email: firebaseUser.email!,
@@ -106,7 +122,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
           } catch (e) {
             console.error("Failed to create profile", e);
-            // This might happen if they were already in roles collections but didn't have a profile
           }
         } else {
           userProfile = userSnap.data() as UserProfile;
@@ -124,6 +139,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setProfile(userProfile);
 
+        // Check for active visit
+        const visitsQuery = query(
+          collection(db, "visits"),
+          where("userId", "==", firebaseUser.uid),
+          where("status", "==", "active"),
+          limit(1)
+        );
+        const visitSnap = await getDocs(visitsQuery);
+        if (!visitSnap.empty) {
+          setActiveVisitId(visitSnap.docs[0].id);
+        }
+
         // Routing Logic
         if (userProfile.college === null) {
           if (pathname !== "/onboarding") {
@@ -140,6 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setProfile(null);
+        setActiveVisitId(null);
         if (pathname !== "/" && !isUserLoading) {
           router.push("/");
         }
@@ -158,7 +186,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile, 
       loading: isUserLoading || isProfileLoading, 
       signIn, 
-      logout 
+      logout,
+      activeVisitId,
+      setActiveVisitId
     }}>
       {children}
     </AuthContext.Provider>
