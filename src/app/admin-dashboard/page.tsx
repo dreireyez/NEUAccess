@@ -8,7 +8,9 @@ import {
   orderBy, 
   doc, 
   updateDoc, 
-  limit
+  limit,
+  setDoc,
+  deleteDoc
 } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +26,8 @@ import {
   LayoutDashboard,
   LogOut,
   UserCheck,
-  Ban
+  Ban,
+  MoreVertical
 } from "lucide-react";
 import { 
   Table, 
@@ -34,13 +37,23 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminDashboard() {
   const { profile, logout, loading } = useAuth();
   const db = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [stats, setStats] = useState({
@@ -49,7 +62,8 @@ export default function AdminDashboard() {
     month: 0
   });
 
-  // Security Guard: Prevent queries if not admin/staff
+  // Security Guard: Only proceed with queries if the user profile confirms they are admin/staff
+  // and they are not currently being redirected.
   const isAuthorized = profile?.role === 'admin' || profile?.role === 'staff';
 
   const usersQuery = useMemoFirebase(() => {
@@ -76,7 +90,7 @@ export default function AdminDashboard() {
     if (!visits) return;
 
     const now = new Date();
-    const startOfDay = new Date(now.setHours(0,0,0,0));
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -97,8 +111,50 @@ export default function AdminDashboard() {
       await updateDoc(doc(db, "users", userId), {
         isBlocked: !currentStatus
       });
-    } catch (error) {
+      toast({
+        title: !currentStatus ? "User Blocked" : "User Unblocked",
+        description: `Successfully updated status for user.`,
+      });
+    } catch (error: any) {
       console.error("Error blocking user:", error);
+    }
+  };
+
+  const updateUserRole = async (userId: string, newRole: "admin" | "staff" | "user") => {
+    if (profile?.role !== 'admin') return;
+    try {
+      // 1. Update the role in the User document
+      await updateDoc(doc(db, "users", userId), {
+        role: newRole
+      });
+
+      // 2. Sync with Authorization Segregation Collections (roles_admin, roles_staff)
+      // This ensures the security rules match the UI role
+      const adminRef = doc(db, "roles_admin", userId);
+      const staffRef = doc(db, "roles_staff", userId);
+
+      // Clean up existing roles in segregation collections first
+      await deleteDoc(adminRef);
+      await deleteDoc(staffRef);
+
+      // Add to the appropriate collection
+      if (newRole === "admin") {
+        await setDoc(adminRef, { active: true });
+      } else if (newRole === "staff") {
+        await setDoc(staffRef, { active: true });
+      }
+
+      toast({
+        title: "Role Updated",
+        description: `User role changed to ${newRole}.`,
+      });
+    } catch (error: any) {
+      console.error("Error updating user role:", error);
+      toast({
+        title: "Update Failed",
+        description: "Insufficient permissions to change administrative roles.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -110,7 +166,10 @@ export default function AdminDashboard() {
   if (loading || !isAuthorized) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-[#0B3D73] font-bold">Verifying Permissions...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-[#0B3D73] border-t-transparent rounded-full animate-spin" />
+          <div className="text-[#0B3D73] font-bold">Verifying Permissions...</div>
+        </div>
       </div>
     );
   }
@@ -226,8 +285,9 @@ export default function AdminDashboard() {
 
           {/* User Table */}
           <section className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-100">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-xl font-bold font-headline">User Directory</h2>
+              <p className="text-xs text-muted-foreground">Managing {filteredUsers.length} total members</p>
             </div>
             <div className="overflow-x-auto">
               <Table>
@@ -237,7 +297,7 @@ export default function AdminDashboard() {
                     <TableHead>College</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
-                    {profile?.role === 'admin' && <TableHead className="text-right">Actions</TableHead>}
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -256,14 +316,27 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell className="text-sm text-gray-600">{user.college || 'Pending Onboarding'}</TableCell>
                       <TableCell>
-                        <span className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
-                          user.role === 'admin' ? "bg-purple-100 text-purple-700" :
-                          user.role === 'staff' ? "bg-blue-100 text-blue-700" :
-                          "bg-gray-100 text-gray-700"
-                        )}>
-                          {user.role}
-                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className={cn(
+                              "px-2 py-0.5 h-auto rounded text-[10px] font-bold uppercase cursor-pointer transition-colors",
+                              user.role === 'admin' ? "bg-purple-100 text-purple-700 hover:bg-purple-200" :
+                              user.role === 'staff' ? "bg-blue-100 text-blue-700 hover:bg-blue-200" :
+                              "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            )}>
+                              {user.role}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          {profile?.role === 'admin' && (
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuLabel>Change Role</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => updateUserRole(user.id, "user")}>User (Student)</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => updateUserRole(user.id, "staff")}>Staff</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => updateUserRole(user.id, "admin")}>Administrator</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          )}
+                        </DropdownMenu>
                       </TableCell>
                       <TableCell>
                         {user.isBlocked ? (
@@ -278,18 +351,19 @@ export default function AdminDashboard() {
                           </div>
                         )}
                       </TableCell>
-                      {profile?.role === 'admin' && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end items-center gap-2">
-                            <span className="text-[10px] text-gray-400">{user.isBlocked ? 'Unblock' : 'Block'}</span>
-                            <Switch 
-                              checked={!user.isBlocked} 
-                              onCheckedChange={() => toggleBlockUser(user.id, user.isBlocked)}
-                              className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
-                            />
+                      <TableCell className="text-right">
+                        <div className="flex justify-end items-center gap-3">
+                          <div className="flex items-center gap-2">
+                             <span className="text-[10px] text-gray-400">{user.isBlocked ? 'Unlock' : 'Lock'}</span>
+                             <Switch 
+                               checked={!user.isBlocked} 
+                               onCheckedChange={() => toggleBlockUser(user.id, user.isBlocked)}
+                               disabled={profile?.role !== 'admin' || user.id === profile?.id}
+                               className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
+                             />
                           </div>
-                        </TableCell>
-                      )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
