@@ -37,7 +37,8 @@ import {
   Settings,
   Clock,
   MoreVertical,
-  AlertTriangle
+  AlertTriangle,
+  Copy
 } from "lucide-react";
 import { 
   Table, 
@@ -251,7 +252,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-6">
             <p className="text-center text-muted-foreground font-medium">
-              Your profile is marked as <span className="text-[#0B3D73] font-bold">{profile?.role}</span>, but your UID must be added to the segregation collection for full access.
+              Your profile is marked as <span className="text-[#0B3D73] font-bold">{profile?.role}</span>, but your UID must be manually added to the segregation collection for full security clearance.
             </p>
 
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 shadow-inner">
@@ -260,21 +261,26 @@ export default function AdminDashboard() {
                 Firestore Access Steps
               </h3>
               <ol className="text-sm text-slate-600 space-y-4 list-decimal pl-4">
-                <li>Create collection: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[#0B3D73] font-mono">roles_admin</code></li>
-                <li>Add a document with your UID:
-                  <div className="mt-2 flex items-center gap-2 bg-white p-2 border rounded-xl">
-                    <code className="flex-1 font-mono text-[10px] break-all">
+                <li>Create a collection in Firestore named: <code className="bg-slate-200 px-1.5 py-0.5 rounded text-[#0B3D73] font-mono">roles_admin</code></li>
+                <li>Add a document where the <strong>Document ID</strong> is your UID:
+                  <div className="mt-2 flex items-center gap-2 bg-white p-3 border rounded-xl shadow-sm">
+                    <code className="flex-1 font-mono text-[11px] break-all text-[#0B3D73] font-bold">
                       {user?.uid}
                     </code>
-                    <Button size="sm" variant="outline" onClick={copyUid} className="h-8 rounded-lg">Copy</Button>
+                    <Button size="sm" variant="outline" onClick={copyUid} className="h-8 rounded-lg gap-2">
+                      <Copy className="w-3 h-3" />
+                      Copy
+                    </Button>
                   </div>
                 </li>
               </ol>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <Button onClick={() => window.location.reload()} className="flex-1 h-12 neu-button-gold rounded-xl font-bold">Refresh</Button>
-              <Button onClick={logout} variant="outline" className="flex-1 h-12 rounded-xl font-bold">Sign Out</Button>
+              <Button onClick={() => window.location.reload()} className="flex-1 h-12 neu-button-gold rounded-xl font-bold shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all">
+                I've Added It, Refresh
+              </Button>
+              <Button onClick={logout} variant="outline" className="flex-1 h-12 rounded-xl font-bold border-[#0B3D73] text-[#0B3D73]">Sign Out</Button>
             </div>
           </CardContent>
         </Card>
