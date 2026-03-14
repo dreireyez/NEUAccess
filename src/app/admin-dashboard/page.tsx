@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { useFirestore, useMemoFirebase, useCollection } from "@/firebase";
+import { useFirestore, useMemoFirebase, useCollection, useDoc } from "@/firebase";
 import { 
   collection, 
   query, 
@@ -27,7 +27,7 @@ import {
   LogOut,
   UserCheck,
   Ban,
-  MoreVertical
+  AlertTriangle
 } from "lucide-react";
 import { 
   Table, 
@@ -50,7 +50,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AdminDashboard() {
-  const { profile, logout, loading } = useAuth();
+  const { profile, logout, loading, user } = useAuth();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -62,41 +62,50 @@ export default function AdminDashboard() {
     month: 0
   });
 
-  // Security Guard: Only proceed with queries if the user profile confirms they are admin/staff
-  // and they are not currently being redirected.
-  const isAuthorized = profile?.role === 'admin' || profile?.role === 'staff';
-
-  const usersQuery = useMemoFirebase(() => {
-    if (!isAuthorized) return null;
-    return collection(db, "users");
-  }, [db, isAuthorized]);
+  // Verify "Real" Authorization from the segregation collections
+  // This prevents the permission error when role is set in profile but doc is missing in roles_admin/staff
+  const adminDocRef = useMemoFirebase(() => user ? doc(db, "roles_admin", user.uid) : null, [db, user]);
+  const staffDocRef = useMemoFirebase(() => user ? doc(db, "roles_staff", user.uid) : null, [db, user]);
   
-  const { data: users = [] } = useCollection(usersQuery);
+  const { data: adminDoc, isLoading: checkingAdmin } = useDoc(adminDocRef);
+  const { data: staffDoc, isLoading: checkingStaff } = useDoc(staffDocRef);
+
+  const isProvisioned = !!(adminDoc || staffDoc);
+  const isProfileAdmin = profile?.role === 'admin' || profile?.role === 'staff';
+  const isActuallyAuthorized = isProfileAdmin && isProvisioned;
+
+  // Data Queries - strictly guarded by backend-verified authorization
+  const usersQuery = useMemoFirebase(() => {
+    if (!isActuallyAuthorized) return null;
+    return collection(db, "users");
+  }, [db, isActuallyAuthorized]);
+  
+  const { data: users = [], isLoading: usersLoading } = useCollection(usersQuery);
 
   const visitsQuery = useMemoFirebase(() => {
-    if (!isAuthorized) return null;
-    return query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(100));
-  }, [db, isAuthorized]);
+    if (!isActuallyAuthorized) return null;
+    return query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(200));
+  }, [db, isActuallyAuthorized]);
   
-  const { data: visits = [] } = useCollection(visitsQuery);
+  const { data: visits = [], isLoading: visitsLoading } = useCollection(visitsQuery);
 
   useEffect(() => {
-    if (!loading && !isAuthorized) {
+    if (!loading && !checkingAdmin && !checkingStaff && !isProfileAdmin) {
       router.push("/user-dashboard");
     }
-  }, [loading, isAuthorized, router]);
+  }, [loading, checkingAdmin, checkingStaff, isProfileAdmin, router]);
 
   useEffect(() => {
-    if (!visits) return;
+    if (!visits || visits.length === 0) return;
 
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const todayCount = (visits || []).filter(v => v.timestamp?.toDate() >= startOfDay).length;
-    const weekCount = (visits || []).filter(v => v.timestamp?.toDate() >= startOfWeek).length;
-    const monthCount = (visits || []).filter(v => v.timestamp?.toDate() >= startOfMonth).length;
+    const todayCount = visits.filter(v => v.timestamp?.toDate() >= startOfDay).length;
+    const weekCount = visits.filter(v => v.timestamp?.toDate() >= startOfWeek).length;
+    const monthCount = visits.filter(v => v.timestamp?.toDate() >= startOfMonth).length;
 
     setStats({
       today: todayCount,
@@ -128,16 +137,13 @@ export default function AdminDashboard() {
         role: newRole
       });
 
-      // 2. Sync with Authorization Segregation Collections (roles_admin, roles_staff)
-      // This ensures the security rules match the UI role
+      // 2. Sync with Authorization Segregation Collections
       const adminRef = doc(db, "roles_admin", userId);
       const staffRef = doc(db, "roles_staff", userId);
 
-      // Clean up existing roles in segregation collections first
       await deleteDoc(adminRef);
       await deleteDoc(staffRef);
 
-      // Add to the appropriate collection
       if (newRole === "admin") {
         await setDoc(adminRef, { active: true });
       } else if (newRole === "staff") {
@@ -146,7 +152,7 @@ export default function AdminDashboard() {
 
       toast({
         title: "Role Updated",
-        description: `User role changed to ${newRole}.`,
+        description: `User role changed to ${newRole}. Access rules updated.`,
       });
     } catch (error: any) {
       console.error("Error updating user role:", error);
@@ -163,13 +169,40 @@ export default function AdminDashboard() {
     user.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading || !isAuthorized) {
+  if (loading || checkingAdmin || checkingStaff) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-[#0B3D73] border-t-transparent rounded-full animate-spin" />
-          <div className="text-[#0B3D73] font-bold">Verifying Permissions...</div>
+          <div className="text-[#0B3D73] font-bold">Checking Credentials...</div>
         </div>
+      </div>
+    );
+  }
+
+  // If role is admin/staff but not in segregation collection, they need manual provisioning
+  if (isProfileAdmin && !isProvisioned) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#F5F5F5] p-4">
+        <Card className="max-w-md w-full border-none shadow-lg">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-amber-600" />
+            </div>
+            <CardTitle className="text-2xl font-bold font-headline">Provisioning Required</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-6">
+            <p className="text-muted-foreground">
+              Your account has the <span className="font-bold text-[#0B3D73]">{profile?.role}</span> role, but you haven't been added to the secure access list yet.
+            </p>
+            <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 text-sm text-amber-800 text-left">
+              <strong>Admin Note:</strong> To fix this, an existing administrator must manually add a document with your UID (<code className="bg-white/50 px-1 rounded">{user?.uid}</code>) to the <code className="bg-white/50 px-1 rounded">roles_admin</code> collection in the Firestore Console.
+            </div>
+            <Button onClick={logout} variant="outline" className="w-full">
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -301,7 +334,16 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
+                  {usersLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-2">
+                           <div className="w-6 h-6 border-2 border-[#0B3D73] border-t-transparent rounded-full animate-spin" />
+                           <p className="text-xs text-muted-foreground">Loading users...</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
