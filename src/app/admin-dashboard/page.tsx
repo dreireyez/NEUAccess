@@ -35,10 +35,12 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export default function AdminDashboard() {
-  const { profile, logout } = useAuth();
+  const { profile, logout, loading } = useAuth();
   const db = useFirestore();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [stats, setStats] = useState({
@@ -47,11 +49,28 @@ export default function AdminDashboard() {
     month: 0
   });
 
-  const usersQuery = useMemoFirebase(() => collection(db, "users"), [db]);
+  // Security Guard: Prevent queries if not admin/staff
+  const isAuthorized = profile?.role === 'admin' || profile?.role === 'staff';
+
+  const usersQuery = useMemoFirebase(() => {
+    if (!isAuthorized) return null;
+    return collection(db, "users");
+  }, [db, isAuthorized]);
+  
   const { data: users = [] } = useCollection(usersQuery);
 
-  const visitsQuery = useMemoFirebase(() => query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(100)), [db]);
+  const visitsQuery = useMemoFirebase(() => {
+    if (!isAuthorized) return null;
+    return query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(100));
+  }, [db, isAuthorized]);
+  
   const { data: visits = [] } = useCollection(visitsQuery);
+
+  useEffect(() => {
+    if (!loading && !isAuthorized) {
+      router.push("/user-dashboard");
+    }
+  }, [loading, isAuthorized, router]);
 
   useEffect(() => {
     if (!visits) return;
@@ -87,6 +106,14 @@ export default function AdminDashboard() {
     user.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
     user.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (loading || !isAuthorized) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-[#0B3D73] font-bold">Verifying Permissions...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#F5F5F5] overflow-hidden">

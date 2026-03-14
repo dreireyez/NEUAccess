@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -14,7 +13,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 interface UserProfile {
-  id: string; // Changed from uid to id to match schema/rules
+  id: string;
   email: string;
   role: "admin" | "staff" | "user";
   college: string | null;
@@ -88,6 +87,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let userProfile: UserProfile;
 
         if (!userSnap.exists()) {
+          // STRICT: Initial role is ALWAYS "user".
+          // Admin must manually move documents to roles_admin/roles_staff to upgrade.
           userProfile = {
             id: firebaseUser.uid,
             email: firebaseUser.email!,
@@ -97,11 +98,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             displayName: firebaseUser.displayName || "Student",
             photoURL: firebaseUser.photoURL || "",
           };
-          // Security rules require 'id' field for 'create' operation
-          await setDoc(userRef, {
-            ...userProfile,
-            createdAt: serverTimestamp(),
-          });
+          
+          try {
+            await setDoc(userRef, {
+              ...userProfile,
+              createdAt: serverTimestamp(),
+            });
+          } catch (e) {
+            console.error("Failed to create profile", e);
+            // This might happen if they were already in roles collections but didn't have a profile
+          }
         } else {
           userProfile = userSnap.data() as UserProfile;
         }
@@ -124,11 +130,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             router.push("/onboarding");
           }
         } else if (userProfile.role === "user") {
-          if (pathname === "/" || pathname === "/onboarding") {
+          if (pathname === "/" || pathname === "/onboarding" || pathname === "/admin-dashboard") {
             router.push("/user-dashboard");
           }
         } else if (userProfile.role === "admin" || userProfile.role === "staff") {
-          if (pathname === "/" || pathname === "/onboarding") {
+          if (pathname === "/" || pathname === "/onboarding" || pathname === "/user-dashboard") {
             router.push("/admin-dashboard");
           }
         }
