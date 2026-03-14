@@ -80,19 +80,19 @@
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/backend/entities/User" },
-      "description": "Profiles of university members."
+      "description": "Profiles of university members. Required fields: id, email, displayName, role, college, isBlocked."
     },
     "/visits/{visitId}": {
       "schema": { "$ref": "#/backend/entities/Visit" },
-      "description": "Historical and active library visit logs."
+      "description": "Historical and active library visit logs. Required fields: userId, timeIn, reasons (array), status."
     },
     "/roles_admin/{userId}": {
       "schema": { "type": "object" },
-      "description": "Lookup for administrative privileges."
+      "description": "Lookup for administrative privileges. Document ID must be the User UID."
     },
     "/roles_staff/{userId}": {
       "schema": { "type": "object" },
-      "description": "Lookup for library staff privileges."
+      "description": "Lookup for library staff privileges. Document ID must be the User UID."
     }
   }
 }
