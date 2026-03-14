@@ -229,6 +229,12 @@ export default function AdminDashboard() {
     u.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const filteredVisits = (visitsList || []).filter(v => 
+    v.userId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (Array.isArray(v.reasons) && v.reasons.some((r: string) => r.toLowerCase().includes(searchTerm.toLowerCase()))) ||
+    (v.reason && v.reason.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   if (loading || checkingAdmin || checkingStaff) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -380,7 +386,7 @@ export default function AdminDashboard() {
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-[#0B3D73] transition-colors" />
               <Input 
-                placeholder="Search..." 
+                placeholder={activeTab === 'users' ? "Search by name or email..." : activeTab === 'visits' ? "Search by UID or purpose..." : "Search..."} 
                 className="pl-12 h-12 bg-slate-50 border-none rounded-2xl focus:bg-white focus:ring-2 focus:ring-[#0B3D73]/10 transition-all font-medium"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -589,7 +595,7 @@ export default function AdminDashboard() {
             <Card className="rounded-3xl border-none shadow-xl overflow-hidden">
               <div className="p-8 border-b border-slate-50 flex items-center justify-between">
                 <h3 className="text-xl font-black text-[#0B3D73] font-headline">Visit Master Log</h3>
-                <p className="text-xs text-slate-400 font-bold uppercase">{(visitsList || []).length} Records</p>
+                <p className="text-xs text-slate-400 font-bold uppercase">{filteredVisits.length} Records</p>
               </div>
               <div className="overflow-x-auto">
                 <Table>
@@ -603,7 +609,11 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(visitsList || []).map((v: any) => (
+                    {visitsLoading ? (
+                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-slate-400 font-bold">Loading...</TableCell></TableRow>
+                    ) : filteredVisits.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-slate-400 font-bold">No records match your search.</TableCell></TableRow>
+                    ) : filteredVisits.map((v: any) => (
                       <TableRow key={v.id} className="border-slate-50">
                         <TableCell className="pl-8 py-6">
                            <p className="text-sm font-bold text-slate-800">
