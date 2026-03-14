@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
@@ -306,9 +305,8 @@ export default function AdminDashboard() {
             </Link>
             
             <Button 
-              variant="outline" 
               onClick={logout} 
-              className="w-full h-12 border-white/10 text-white hover:bg-rose-600 hover:border-rose-600 hover:text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+              className="w-full h-12 bg-white text-[#0B3D73] hover:bg-rose-600 hover:text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 border-none shadow-lg"
             >
               <LogOut className="w-4 h-4" /> 
               <span>Sign Out</span>
