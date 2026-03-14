@@ -14,7 +14,7 @@ export default function LoginPage() {
 
   return (
     <main className="flex flex-col md:flex-row h-screen w-full overflow-hidden">
-      {/* Left/Top Section: Image with Overlay */}
+      {/* Left/Top Section: Hero Image with Brand Overlay */}
       <div className="relative flex-1 h-[40vh] md:h-full w-full">
         {heroImage && (
           <Image
@@ -28,8 +28,8 @@ export default function LoginPage() {
         )}
         <div className="absolute inset-0 neu-gradient opacity-80 mix-blend-multiply" />
         <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-white text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight font-headline">NEU ACCESS</h1>
-          <p className="text-lg md:text-xl font-light max-w-md">
+          <h1 className="text-5xl md:text-7xl font-black mb-4 tracking-tighter font-headline">NEU ACCESS</h1>
+          <p className="text-lg md:text-xl font-medium opacity-90 max-w-md">
             The Official Library Visitor Monitoring System of New Era University.
           </p>
         </div>
@@ -37,11 +37,11 @@ export default function LoginPage() {
 
       {/* Right/Bottom Section: Login Panel */}
       <div className="flex-1 h-[60vh] md:h-full bg-white flex flex-col items-center justify-center p-8 md:p-16">
-        <div className="w-full max-w-sm flex flex-col space-y-8">
+        <div className="w-full max-w-sm flex flex-col space-y-10">
           <div className="space-y-6 text-center md:text-left">
             <div className="flex justify-center md:justify-start">
               {/* University Logo Placeholder */}
-              <div className="relative w-24 h-24 mb-2">
+              <div className="relative w-28 h-28 mb-4">
                 {logoImage && (
                   <Image
                     src={logoImage.imageUrl}
@@ -55,15 +55,15 @@ export default function LoginPage() {
             </div>
             
             <div className="space-y-2">
-              <h2 className="text-3xl font-bold text-foreground font-headline">Welcome Back</h2>
-              <p className="text-muted-foreground">Sign in using your institutional account to continue.</p>
+              <h2 className="text-4xl font-black text-[#0B3D73] font-headline tracking-tight">Welcome Back</h2>
+              <p className="text-slate-500 font-medium">Sign in using your institutional account to continue.</p>
             </div>
           </div>
 
           <Button
             onClick={signIn}
             disabled={loading}
-            className="w-full h-14 neu-button-gold text-lg font-semibold flex items-center justify-center gap-3 rounded-lg shadow-md hover:scale-[1.02] active:scale-95 transition-all"
+            className="w-full h-14 neu-button-gold text-lg font-bold flex items-center justify-center gap-3 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
           >
             <svg className="w-6 h-6" viewBox="0 0 24 24">
               <path
@@ -86,8 +86,8 @@ export default function LoginPage() {
             Sign in with Google
           </Button>
 
-          <p className="text-xs text-center text-muted-foreground mt-8">
-            By signing in, you agree to follow the University Library Rules and Regulations.
+          <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest mt-8">
+            University Library Rules & Regulations Apply
           </p>
         </div>
       </div>
