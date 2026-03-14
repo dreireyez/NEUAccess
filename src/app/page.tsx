@@ -23,6 +23,7 @@ export default function LoginPage() {
             fill
             className="object-cover"
             priority
+            unoptimized
             data-ai-hint={heroImage.imageHint}
           />
         )}
@@ -40,14 +41,14 @@ export default function LoginPage() {
         <div className="w-full max-w-sm flex flex-col space-y-10">
           <div className="space-y-6 text-center md:text-left">
             <div className="flex justify-center md:justify-start">
-              {/* University Logo Placeholder */}
-              <div className="relative w-32 h-32 mb-4">
+              <div className="relative w-40 h-40 mb-4">
                 {logoImage ? (
                   <Image
                     src={logoImage.imageUrl}
                     alt={logoImage.description}
                     fill
                     className="object-contain"
+                    unoptimized
                     data-ai-hint={logoImage.imageHint}
                   />
                 ) : (
