@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
@@ -35,10 +34,10 @@ export default function UserDashboard() {
   
   const visitsQuery = useMemoFirebase(() => {
     if (!profile) return null;
+    // Simplified query for regular users to prevent permission/index errors
     return query(
       collection(db, "visits"),
-      where("userId", "==", profile.id),
-      orderBy("timestamp", "desc")
+      where("userId", "==", profile.id)
     );
   }, [db, profile]);
 
@@ -54,6 +53,14 @@ export default function UserDashboard() {
     visits.forEach((v: any) => {
       counts[v.reason] = (counts[v.reason] || 0) + 1;
     });
+    
+    // Sort logic handled in memory for safety
+    const sortedVisits = [...visits].sort((a, b) => {
+       const dateA = a.timestamp?.toDate() || 0;
+       const dateB = b.timestamp?.toDate() || 0;
+       return dateB - dateA;
+    });
+
     const topReason = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
 
     setStats({
@@ -90,6 +97,13 @@ export default function UserDashboard() {
       </div>
     );
   }
+
+  // Sort visits for the table
+  const sortedVisitsForTable = [...(visits || [])].sort((a, b) => {
+     const dateA = a.timestamp?.toDate() || 0;
+     const dateB = b.timestamp?.toDate() || 0;
+     return dateB - dateA;
+  });
 
   return (
     <div className="min-h-screen bg-[#F5F5F5]">
@@ -182,17 +196,17 @@ export default function UserDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visits && visits.length > 0 ? (
-                  visits.map((visit) => (
+                {sortedVisitsForTable.length > 0 ? (
+                  sortedVisitsForTable.map((visit) => (
                     <TableRow key={visit.id} className="hover:bg-gray-50/50">
                       <TableCell className="font-medium">
-                        {visit.timestamp?.toDate().toLocaleString('en-US', {
+                        {visit.timestamp?.toDate() ? new Date(visit.timestamp.toDate()).toLocaleString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit'
-                        })}
+                        }) : 'Just now'}
                       </TableCell>
                       <TableCell>
                         <span className="px-3 py-1 rounded-full bg-blue-50 text-[#0B3D73] text-xs font-semibold">

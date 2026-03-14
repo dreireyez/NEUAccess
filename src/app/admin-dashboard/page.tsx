@@ -27,7 +27,9 @@ import {
   LogOut,
   UserCheck,
   Ban,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink,
+  ClipboardCheck
 } from "lucide-react";
 import { 
   Table, 
@@ -73,7 +75,7 @@ export default function AdminDashboard() {
   const isProvisioned = !!(adminDoc || staffDoc);
   const isProfileAdmin = profile?.role === 'admin' || profile?.role === 'staff';
   
-  // 3. Strict guard: only fire global queries if both profile and provisioning are verified
+  // 3. Strict guard: only fire global queries if both profile AND backend provisioning are verified
   const isActuallyAuthorized = !loading && !checkingAdmin && !checkingStaff && isProfileAdmin && isProvisioned;
 
   // Data Queries - strictly guarded by backend-verified authorization
@@ -86,13 +88,14 @@ export default function AdminDashboard() {
 
   const visitsQuery = useMemoFirebase(() => {
     if (!isActuallyAuthorized) return null;
+    // Note: This query may require a composite index if order is used. Limit to 500 for safety.
     return query(collection(db, "visits"), orderBy("timestamp", "desc"), limit(500));
   }, [db, isActuallyAuthorized]);
   
   const { data: visits = [], isLoading: visitsLoading } = useCollection(visitsQuery);
 
   useEffect(() => {
-    // Redirect non-admin users to their dashboard
+    // Redirect standard students to their dashboard
     if (!loading && !checkingAdmin && !checkingStaff && profile && profile.role === 'user') {
       router.push("/user-dashboard");
     }
@@ -116,6 +119,13 @@ export default function AdminDashboard() {
       month: monthCount
     });
   }, [visits]);
+
+  const copyUid = () => {
+    if (user?.uid) {
+      navigator.clipboard.writeText(user.uid);
+      toast({ title: "UID Copied", description: "User ID copied to clipboard." });
+    }
+  };
 
   const toggleBlockUser = async (userId: string, currentStatus: boolean) => {
     if (profile?.role !== 'admin') return;
@@ -175,7 +185,7 @@ export default function AdminDashboard() {
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-[#0B3D73] border-t-transparent rounded-full animate-spin" />
-          <div className="text-[#0B3D73] font-bold">Checking Credentials...</div>
+          <div className="text-[#0B3D73] font-bold">Verifying Secure Access...</div>
         </div>
       </div>
     );
@@ -185,23 +195,57 @@ export default function AdminDashboard() {
   if (isProfileAdmin && !isProvisioned) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#F5F5F5] p-4">
-        <Card className="max-w-md w-full border-none shadow-lg">
-          <CardHeader className="text-center">
+        <Card className="max-w-xl w-full border-none shadow-xl overflow-hidden">
+          <div className="h-2 neu-bg-blue w-full" />
+          <CardHeader className="text-center pb-2">
             <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-8 h-8 text-amber-600" />
+              <ShieldAlert className="w-8 h-8 text-amber-600" />
             </div>
-            <CardTitle className="text-2xl font-bold font-headline">Provisioning Required</CardTitle>
+            <CardTitle className="text-2xl font-bold font-headline">Secure Provisioning Required</CardTitle>
           </CardHeader>
-          <CardContent className="text-center space-y-6">
-            <p className="text-muted-foreground">
-              Your account has the <span className="font-bold text-[#0B3D73]">{profile?.role}</span> role, but you haven't been added to the secure access list yet.
-            </p>
-            <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 text-sm text-amber-800 text-left">
-              <strong>Admin Note:</strong> To fix this, an existing administrator must manually add a document with your UID (<code className="bg-white/50 px-1 rounded">{user?.uid}</code>) to the <code className="bg-white/50 px-1 rounded">roles_admin</code> collection in the Firestore Console.
+          <CardContent className="space-y-6">
+            <div className="text-center space-y-2">
+              <p className="text-muted-foreground">
+                Your profile identifies you as <span className="font-bold text-[#0B3D73]">{profile?.role}</span>, but your device is not yet authorized to list visitor data.
+              </p>
             </div>
-            <Button onClick={logout} variant="outline" className="w-full">
-              Sign Out
-            </Button>
+
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <ClipboardCheck className="w-5 h-5" />
+                Manual Authorization Steps
+              </h3>
+              <ol className="text-sm text-slate-600 space-y-3 list-decimal pl-4">
+                <li>
+                  Go to the <strong>Firebase Console</strong> and open the Firestore Database.
+                </li>
+                <li>
+                  Locate or create the collection: <code className="bg-slate-200 px-1 rounded text-[#0B3D73]">roles_admin</code>.
+                </li>
+                <li>
+                  Add a new document with this <strong>UID</strong> as the Document ID:
+                  <div className="mt-2 flex items-center gap-2">
+                    <code className="bg-white border px-2 py-1 rounded flex-1 font-mono text-xs overflow-hidden truncate">
+                      {user?.uid}
+                    </code>
+                    <Button size="sm" variant="outline" onClick={copyUid} className="h-8">
+                      Copy UID
+                    </Button>
+                  </div>
+                </li>
+                <li>Refresh this page once the document is created.</li>
+              </ol>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button onClick={() => window.location.reload()} className="flex-1 neu-button-gold">
+                Check Again
+              </Button>
+              <Button onClick={logout} variant="outline" className="flex-1">
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
