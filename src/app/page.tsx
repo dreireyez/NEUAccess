@@ -1,23 +1,31 @@
+
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 export default function LoginPage() {
   const { signIn, loading } = useAuth();
+  
+  const logoImage = PlaceHolderImages.find(img => img.id === 'university-logo');
+  const heroImage = PlaceHolderImages.find(img => img.id === 'login-hero');
 
   return (
     <main className="flex flex-col md:flex-row h-screen w-full overflow-hidden">
       {/* Left/Top Section: Image with Overlay */}
       <div className="relative flex-1 h-[40vh] md:h-full w-full">
-        <Image
-          src="https://picsum.photos/seed/neu-lib/1200/800"
-          alt="NEU University Building"
-          fill
-          className="object-cover"
-          priority
-        />
+        {heroImage && (
+          <Image
+            src={heroImage.imageUrl}
+            alt={heroImage.description}
+            fill
+            className="object-cover"
+            priority
+            data-ai-hint={heroImage.imageHint}
+          />
+        )}
         <div className="absolute inset-0 neu-gradient opacity-80 mix-blend-multiply" />
         <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-white text-center">
           <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight font-headline">NEU ACCESS</h1>
@@ -30,9 +38,26 @@ export default function LoginPage() {
       {/* Right/Bottom Section: Login Panel */}
       <div className="flex-1 h-[60vh] md:h-full bg-white flex flex-col items-center justify-center p-8 md:p-16">
         <div className="w-full max-w-sm flex flex-col space-y-8">
-          <div className="space-y-2 text-center md:text-left">
-            <h2 className="text-3xl font-bold text-foreground font-headline">Welcome Back</h2>
-            <p className="text-muted-foreground">Sign in using your university account to continue.</p>
+          <div className="space-y-6 text-center md:text-left">
+            <div className="flex justify-center md:justify-start">
+              {/* University Logo Placeholder */}
+              <div className="relative w-24 h-24 mb-2">
+                {logoImage && (
+                  <Image
+                    src={logoImage.imageUrl}
+                    alt={logoImage.description}
+                    fill
+                    className="object-contain"
+                    data-ai-hint={logoImage.imageHint}
+                  />
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h2 className="text-3xl font-bold text-foreground font-headline">Welcome Back</h2>
+              <p className="text-muted-foreground">Sign in using your institutional account to continue.</p>
+            </div>
           </div>
 
           <Button
