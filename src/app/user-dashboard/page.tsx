@@ -64,24 +64,28 @@ export default function UserDashboard() {
   const [stats, setStats] = useState({ totalVisits: 0, favoriteReason: "N/A" });
 
   useEffect(() => {
-    if (!visits) return;
+    if (!visits || visits.length === 0) {
+      setStats({ totalVisits: 0, favoriteReason: "N/A" });
+      return;
+    }
 
     const counts: Record<string, number> = {};
-    visits.forEach((v: any) => {
+    (visits || []).forEach((v: any) => {
       if (Array.isArray(v.reasons)) {
         v.reasons.forEach((r: string) => {
           counts[r] = (counts[r] || 0) + 1;
         });
-      } else if (v.reason) { // Fallback for old data
+      } else if (v.reason) {
         counts[v.reason] = (counts[v.reason] || 0) + 1;
       }
     });
     
-    const topReason = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    const sortedReasons = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const topReason = sortedReasons.length > 0 ? sortedReasons[0][0] : "N/A";
 
     setStats({
-      totalVisits: visits.filter((v: any) => v.status === 'completed').length,
-      favoriteReason: topReason ? topReason[0] : "N/A"
+      totalVisits: (visits || []).filter((v: any) => v.status === 'completed').length,
+      favoriteReason: topReason
     });
   }, [visits]);
 
@@ -151,8 +155,8 @@ export default function UserDashboard() {
   }
 
   const sortedVisitsForTable = [...(visits || [])].sort((a, b) => {
-     const dateA = a.timeIn?.toDate() || 0;
-     const dateB = b.timeIn?.toDate() || 0;
+     const dateA = a.timeIn?.toDate ? a.timeIn.toDate() : 0;
+     const dateB = b.timeIn?.toDate ? b.timeIn.toDate() : 0;
      return dateB - dateA;
   });
 
@@ -215,7 +219,7 @@ export default function UserDashboard() {
           <section className="space-y-6 animate-in fade-in duration-500">
             <div className="space-y-1">
               <h2 className="text-3xl font-extrabold text-[#333333] font-headline tracking-tight">Time In</h2>
-              <p className="text-muted-foreground font-medium">Select your purposes for visiting the library today (Multi-select allowed).</p>
+              <p className="text-muted-foreground font-medium">Select your purposes for visiting the library today.</p>
             </div>
             
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -269,7 +273,7 @@ export default function UserDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-5xl font-black text-[#0B3D73] font-headline">{stats.totalVisits}</div>
-              <p className="text-xs text-muted-foreground mt-2 font-medium">Successfully completed sessions</p>
+              <p className="text-xs text-muted-foreground mt-2 font-medium">Completed sessions</p>
             </CardContent>
           </Card>
 
@@ -281,7 +285,7 @@ export default function UserDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-black text-[#0B3D73] font-headline truncate">{stats.favoriteReason}</div>
-              <p className="text-xs text-muted-foreground mt-2 font-medium">Your most common reason for visit</p>
+              <p className="text-xs text-muted-foreground mt-2 font-medium">Most common visit reason</p>
             </CardContent>
           </Card>
         </section>
@@ -310,13 +314,13 @@ export default function UserDashboard() {
                       <TableCell className="py-6 pl-8">
                         <div className="flex flex-col">
                           <span className="text-sm font-bold text-slate-800">
-                            {visit.timeIn?.toDate() ? new Date(visit.timeIn.toDate()).toLocaleString('en-US', {
+                            {visit.timeIn?.toDate ? new Date(visit.timeIn.toDate()).toLocaleString('en-US', {
                               month: 'short', day: 'numeric', year: 'numeric'
-                            }) : 'Just now'}
+                            }) : 'Legacy Log'}
                           </span>
                           <span className="text-xs text-slate-500 font-medium">
-                            {visit.timeIn?.toDate() ? new Date(visit.timeIn.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'} 
-                            {visit.timeOut ? ` - ${new Date(visit.timeOut.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : ' (Ongoing)'}
+                            {visit.timeIn?.toDate ? new Date(visit.timeIn.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'} 
+                            {visit.timeOut?.toDate ? ` - ${new Date(visit.timeOut.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : visit.status === 'active' ? ' (Ongoing)' : ''}
                           </span>
                         </div>
                       </TableCell>
@@ -327,8 +331,8 @@ export default function UserDashboard() {
                               {r}
                             </span>
                           )) : (
-                            <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-[#0B3D73] text-[10px] font-bold">
-                              {visit.reason}
+                            <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-400 text-[10px] font-bold">
+                              {visit.reason || 'N/A'}
                             </span>
                           )}
                         </div>
