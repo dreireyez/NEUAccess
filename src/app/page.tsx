@@ -15,7 +15,7 @@ export default function LoginPage() {
   return (
     <main className="flex flex-col md:flex-row h-screen w-full overflow-hidden">
       {/* Left/Top Section: Hero Image with Brand Overlay */}
-      <div className="relative flex-1 h-[40vh] md:h-full w-full">
+      <div className="relative flex-1 h-[40vh] md:h-full w-full bg-[#0B3D73]">
         {heroImage && (
           <Image
             src={heroImage.imageUrl}
@@ -41,8 +41,8 @@ export default function LoginPage() {
           <div className="space-y-6 text-center md:text-left">
             <div className="flex justify-center md:justify-start">
               {/* University Logo Placeholder */}
-              <div className="relative w-28 h-28 mb-4">
-                {logoImage && (
+              <div className="relative w-32 h-32 mb-4">
+                {logoImage ? (
                   <Image
                     src={logoImage.imageUrl}
                     alt={logoImage.description}
@@ -50,6 +50,8 @@ export default function LoginPage() {
                     className="object-contain"
                     data-ai-hint={logoImage.imageHint}
                   />
+                ) : (
+                  <div className="w-full h-full bg-slate-100 rounded-full animate-pulse" />
                 )}
               </div>
             </div>

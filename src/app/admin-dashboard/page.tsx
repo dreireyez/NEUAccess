@@ -12,9 +12,7 @@ import {
   limit,
   setDoc,
   deleteDoc,
-  where,
-  getDocs,
-  writeBatch
+  where
 } from "firebase/firestore";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -34,9 +32,6 @@ import {
   MoreVertical,
   Filter,
   TrendingUp,
-  AlertTriangle,
-  UserCheck,
-  Ban
 } from "lucide-react";
 import { 
   Table, 
@@ -140,7 +135,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const list = visitsList || [];
-    if (list.length === 0) return;
+    if (list.length === 0) {
+      setStats({ today: 0, week: 0, month: 0 });
+      return;
+    }
 
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -215,15 +213,15 @@ export default function AdminDashboard() {
   };
 
   const filteredUsers = (usersList || []).filter(u => {
-    const matchesSearch = u.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         u.displayName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (u.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) || 
+                         (u.displayName?.toLowerCase() || "").includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === "all" || u.role === roleFilter;
     const matchesCollege = collegeFilter === "all" || u.college === collegeFilter;
     return matchesSearch && matchesRole && matchesCollege;
   });
 
   const filteredVisits = (visitsList || []).filter(v => {
-    const matchesSearch = v.userId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (v.userId?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                          (Array.isArray(v.reasons) && v.reasons.some((r: string) => r.toLowerCase().includes(searchTerm.toLowerCase())));
     const matchesPurpose = purposeFilter === "all" || (Array.isArray(v.reasons) && v.reasons.includes(purposeFilter));
     return matchesSearch && matchesPurpose;
