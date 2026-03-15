@@ -74,12 +74,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       
+      // Ensure persistence is set before sign-in
       await setPersistence(auth, browserLocalPersistence);
       
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       if (isMobile) {
-        // Redirect is necessary for mobile to handle third-party cookie restrictions
         await signInWithRedirect(auth, provider);
       } else {
         const result = await signInWithPopup(auth, provider);
@@ -109,110 +109,111 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Handle Auth State and Redirect Results
+  // Main Auth and Profile Synchronizer
   useEffect(() => {
     let isMounted = true;
 
-    async function checkAuthAndProfile() {
-      // 1. Check for Redirect Result (Mobile)
-      try {
-        const redirectResult = await getRedirectResult(auth);
-        if (redirectResult?.user && isMounted) {
-          if (!redirectResult.user.email?.endsWith("@neu.edu.ph")) {
-            await signOut(auth);
-            toast({
-              title: "Access Denied",
-              description: "Institutional email required.",
-              variant: "destructive",
-            });
-            return;
-          }
-        }
-      } catch (e) {
-        console.error("Redirect error", e);
+    async function processUser(user: FirebaseUser) {
+      if (!user.email?.endsWith("@neu.edu.ph")) {
+        await logout();
+        return;
       }
 
-      // 2. Process Firebase User
-      if (firebaseUser) {
-        if (!firebaseUser.email?.endsWith("@neu.edu.ph")) {
-          await logout();
-          return;
-        }
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
 
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
+      let userProfile: UserProfile;
 
-        let userProfile: UserProfile;
-
-        if (!userSnap.exists()) {
-          // STRICTLY assign 'user' role to new sign-ups
-          userProfile = {
-            id: firebaseUser.uid,
-            email: firebaseUser.email!,
-            role: "user", 
-            college: null,
-            isBlocked: false,
-            displayName: firebaseUser.displayName || "Student",
-            photoURL: firebaseUser.photoURL || "",
-          };
-          
-          try {
-            await setDoc(userRef, {
-              ...userProfile,
-              createdAt: serverTimestamp(),
-            });
-          } catch (e) {
-            console.error("Failed to create profile", e);
-          }
-        } else {
-          userProfile = userSnap.data() as UserProfile;
-        }
-
-        if (userProfile.isBlocked) {
-          await logout();
-          toast({
-            title: "Access Denied",
-            description: "Account blocked. Contact admin.",
-            variant: "destructive",
+      if (!userSnap.exists()) {
+        // STRICT ENFORCEMENT: New users are ALWAYS students/users
+        userProfile = {
+          id: user.uid,
+          email: user.email!,
+          role: "user", 
+          college: null,
+          isBlocked: false,
+          displayName: user.displayName || "Student",
+          photoURL: user.photoURL || "",
+        };
+        
+        try {
+          await setDoc(userRef, {
+            ...userProfile,
+            createdAt: serverTimestamp(),
           });
-          return;
-        }
-
-        if (isMounted) {
-          setProfile(userProfile);
-
-          // Active visit check
-          const visitsQuery = query(
-            collection(db, "visits"),
-            where("userId", "==", firebaseUser.uid),
-            where("status", "==", "active"),
-            limit(1)
-          );
-          const visitSnap = await getDocs(visitsQuery);
-          if (!visitSnap.empty) {
-            setActiveVisitId(visitSnap.docs[0].id);
-          }
-
-          // Navigation Logic
-          if (userProfile.college === null) {
-            if (pathname !== "/onboarding") router.push("/onboarding");
-          } else if (userProfile.role === "admin" || userProfile.role === "staff") {
-            if (pathname === "/" || pathname === "/onboarding") router.push("/admin-dashboard");
-          } else {
-            if (pathname === "/" || pathname === "/onboarding" || pathname === "/admin-dashboard") router.push("/user-dashboard");
-          }
+        } catch (e) {
+          console.error("Failed to create profile", e);
         }
       } else {
-        if (isMounted) {
-          setProfile(null);
-          setActiveVisitId(null);
-          if (pathname !== "/" && !isUserLoading) {
-            router.push("/");
-          }
-        }
+        userProfile = userSnap.data() as UserProfile;
       }
 
-      if (isMounted) setIsProfileLoading(false);
+      if (userProfile.isBlocked) {
+        await logout();
+        toast({
+          title: "Access Denied",
+          description: "Account blocked. Contact admin.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (isMounted) {
+        setProfile(userProfile);
+
+        // Check for active library visits
+        const visitsQuery = query(
+          collection(db, "visits"),
+          where("userId", "==", user.uid),
+          where("status", "==", "active"),
+          limit(1)
+        );
+        const visitSnap = await getDocs(visitsQuery);
+        if (!visitSnap.empty) {
+          setActiveVisitId(visitSnap.docs[0].id);
+        }
+
+        // Navigation Routing
+        if (userProfile.college === null) {
+          if (pathname !== "/onboarding") router.push("/onboarding");
+        } else if (userProfile.role === "admin" || userProfile.role === "staff") {
+          // Admins can stay on dashboards
+          if (pathname === "/" || pathname === "/onboarding") router.push("/admin-dashboard");
+        } else {
+          if (pathname === "/" || pathname === "/onboarding") router.push("/user-dashboard");
+        }
+      }
+    }
+
+    async function checkAuthAndProfile() {
+      try {
+        // 1. Handle Redirect Result FIRST (crucial for mobile)
+        const redirectResult = await getRedirectResult(auth);
+        if (redirectResult?.user && isMounted) {
+          await processUser(redirectResult.user);
+          if (isMounted) setIsProfileLoading(false);
+          return;
+        }
+
+        // 2. Fallback to current user state
+        if (firebaseUser) {
+          await processUser(firebaseUser);
+        } else {
+          if (isMounted) {
+            setProfile(null);
+            setActiveVisitId(null);
+            // Only redirect to home if we're not already there and not currently loading
+            if (pathname !== "/" && !isUserLoading) {
+              router.push("/");
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error("Auth check error:", e);
+        // Still set loading to false to avoid blocking the UI
+      } finally {
+        if (isMounted) setIsProfileLoading(false);
+      }
     }
 
     if (!isUserLoading) {
