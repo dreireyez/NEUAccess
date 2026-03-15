@@ -76,20 +76,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // CRITICAL: Set persistence BEFORE sign-in for iOS/Safari stability
       await setPersistence(auth, browserLocalPersistence);
       
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const ua = navigator.userAgent;
+      const isIOS = /iPhone|iPad|iPod/i.test(ua);
+      const isAndroid = /Android/i.test(ua);
       
-      if (isMobile) {
+      // HYBRID APPROACH: Popup for iOS (avoids ITP redirect issues), Redirect for Android
+      if (isIOS) {
+        const result = await signInWithPopup(auth, provider);
+        handlePostSignIn(result.user);
+      } else if (isAndroid) {
         await signInWithRedirect(auth, provider);
       } else {
+        // Desktop
         const result = await signInWithPopup(auth, provider);
-        if (result.user && !result.user.email?.endsWith("@neu.edu.ph")) {
-          await signOut(auth);
-          toast({
-            title: "Access Denied",
-            description: "Please use your institutional @neu.edu.ph email.",
-            variant: "destructive",
-          });
-        }
+        handlePostSignIn(result.user);
       }
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-closure-interaction') {
@@ -105,6 +105,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handlePostSignIn = async (user: FirebaseUser | null) => {
+    if (user && !user.email?.endsWith("@neu.edu.ph")) {
+      await signOut(auth);
+      toast({
+        title: "Access Denied",
+        description: "Please use your institutional @neu.edu.ph email.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // 1. Handle Redirect Result (Runs only once on mount)
   useEffect(() => {
     let isMounted = true;
@@ -113,8 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const result = await getRedirectResult(auth);
         if (result?.user && isMounted) {
-          // If a user just returned from a redirect, the observer (useUser) 
-          // will pick them up shortly, but we've successfully intercepted the flow.
+          handlePostSignIn(result.user);
         }
       } catch (e: any) {
         if (e.code !== 'auth/popup-closed-by-user') {

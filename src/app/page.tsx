@@ -41,11 +41,11 @@ export default function LoginPage() {
       {/* Right Section: Login Panel */}
       <div className="flex-1 h-full bg-white flex flex-col items-center justify-center p-6 md:p-12 overflow-y-auto">
         <div className="w-full max-w-sm flex flex-col items-center justify-center space-y-12">
-          {/* Logo Container - Constrained to prevent spilling */}
-          <div className="relative w-full aspect-square max-w-[200px] md:max-w-[240px] flex items-center justify-center group overflow-hidden rounded-full">
+          {/* Logo Container - Centered and Constrained */}
+          <div className="relative w-full aspect-square max-w-[200px] md:max-w-[240px] flex items-center justify-center group overflow-hidden rounded-full mx-auto">
             <div className="absolute inset-0 bg-[#0B3D73]/5 rounded-full scale-110 group-hover:scale-125 transition-transform duration-500 blur-2xl" />
             {logoImage ? (
-              <div className="relative w-40 h-40 md:w-56 md:h-56">
+              <div className="relative w-40 h-40 md:w-56 md:h-56 flex items-center justify-center">
                 <Image
                   src={logoImage.imageUrl}
                   alt={logoImage.description}
