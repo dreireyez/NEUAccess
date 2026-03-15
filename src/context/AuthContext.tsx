@@ -62,7 +62,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           timeOut: serverTimestamp(),
           status: "completed"
         });
-        setActiveVisitId(null);
       } catch (e) {
         console.error("Error timing out visit during logout:", e);
       }
@@ -70,30 +69,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     await signOut(auth);
     setProfile(null);
+    setActiveVisitId(null);
     router.push("/");
   };
 
   const signIn = async () => {
     setIsPopupBlocked(false);
     try {
+      // Ensure persistence is set BEFORE signing in
+      await setPersistence(auth, browserLocalPersistence);
+      
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
+      provider.setCustomParameters({ 
+        prompt: 'select_account',
+        hd: 'neu.edu.ph' // Hint for Google to show only institutional accounts
+      });
       
       const ua = navigator.userAgent;
-      const isIOS = /iPhone|iPad|iPod/i.test(ua);
+      const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       const isAndroid = /Android/i.test(ua);
       
-      // Hybrid: Popup for iOS, Redirect for Android
-      // Note: setPersistence is now handled in initialization
       if (isIOS) {
-        const result = await signInWithPopup(auth, provider);
-        handlePostSignIn(result.user);
+        // Popups are better for iOS to survive ITP
+        await signInWithPopup(auth, provider);
       } else if (isAndroid) {
+        // Redirects are more reliable for Android
         await signInWithRedirect(auth, provider);
       } else {
         // Desktop
-        const result = await signInWithPopup(auth, provider);
-        handlePostSignIn(result.user);
+        await signInWithPopup(auth, provider);
       }
     } catch (error: any) {
       if (error.code === 'auth/popup-blocked') {
@@ -113,30 +117,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const handlePostSignIn = async (user: FirebaseUser | null) => {
-    if (user && !user.email?.endsWith("@neu.edu.ph")) {
-      await signOut(auth);
-      toast({
-        title: "Access Denied",
-        description: "Please use your institutional @neu.edu.ph email.",
-        variant: "destructive",
-      });
-      return false;
-    }
-    return true;
-  };
-
+  // 1. Initialize Auth and Handle Redirect Results
   useEffect(() => {
     let isMounted = true;
     async function initAuth() {
       try {
-        // Ensure persistence is set once on start
         await setPersistence(auth, browserLocalPersistence);
-        
-        // Handle redirect results for mobile
         const result = await getRedirectResult(auth);
+        
         if (result?.user && isMounted) {
-          await handlePostSignIn(result.user);
+          if (!result.user.email?.endsWith("@neu.edu.ph")) {
+            await signOut(auth);
+            toast({
+              title: "Access Denied",
+              description: "Please use your institutional @neu.edu.ph email.",
+              variant: "destructive",
+            });
+          }
         }
       } catch (e: any) {
         if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/popup-blocked') {
@@ -148,74 +145,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     initAuth();
     return () => { isMounted = false; };
-  }, [auth]);
+  }, [auth, toast]);
 
+  // 2. Synchronize Profile and Session State
   useEffect(() => {
     if (isInitializing || isUserLoading) return;
+    
     let isMounted = true;
 
     async function syncProfile(user: FirebaseUser) {
-      // 1. Domain Validation
       if (!user.email?.endsWith("@neu.edu.ph")) {
         await signOut(auth);
         return;
       }
 
-      // 2. Fetch or Create Profile
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
 
-      let userProfile: UserProfile;
+        let userProfile: UserProfile;
 
-      if (!userSnap.exists()) {
-        userProfile = {
-          id: user.uid,
-          email: user.email!,
-          role: "user", // STRICTOR: All new users are students
-          college: null,
-          isBlocked: false,
-          displayName: user.displayName || "Student",
-          photoURL: user.photoURL || "",
-        };
-        try {
+        if (!userSnap.exists()) {
+          userProfile = {
+            id: user.uid,
+            email: user.email!,
+            role: "user", // MANDATORY: All new users are students
+            college: null,
+            isBlocked: false,
+            displayName: user.displayName || "Student",
+            photoURL: user.photoURL || "",
+          };
           await setDoc(userRef, {
             ...userProfile,
             createdAt: serverTimestamp(),
           });
-        } catch (e) { 
-          console.error("Profile creation failed", e);
-          toast({ title: "Profile Error", description: "Failed to create your profile.", variant: "destructive" });
+        } else {
+          userProfile = userSnap.data() as UserProfile;
+        }
+
+        if (userProfile.isBlocked) {
+          await signOut(auth);
+          toast({ title: "Access Denied", description: "Account blocked.", variant: "destructive" });
           return;
         }
-      } else {
-        userProfile = userSnap.data() as UserProfile;
-      }
 
-      // 3. Security Block Check
-      if (userProfile.isBlocked) {
-        await signOut(auth);
-        toast({ title: "Access Denied", description: "Account blocked.", variant: "destructive" });
-        return;
-      }
+        if (isMounted) {
+          setProfile(userProfile);
+          
+          // Check for active visit session
+          const visitsQuery = query(
+            collection(db, "visits"), 
+            where("userId", "==", user.uid), 
+            where("status", "==", "active"), 
+            limit(1)
+          );
+          const visitSnap = await getDocs(visitsQuery);
+          if (!visitSnap.empty) {
+            setActiveVisitId(visitSnap.docs[0].id);
+          } else {
+            setActiveVisitId(null);
+          }
 
-      if (isMounted) {
-        setProfile(userProfile);
-        
-        // 4. Active Session Check
-        const visitsQuery = query(collection(db, "visits"), where("userId", "==", user.uid), where("status", "==", "active"), limit(1));
-        const visitSnap = await getDocs(visitsQuery);
-        if (!visitSnap.empty) {
-          setActiveVisitId(visitSnap.docs[0].id);
+          // Smart Routing Logic
+          if (userProfile.college === null) {
+            if (pathname !== "/onboarding") router.push("/onboarding");
+          } else if (userProfile.role === "admin" || userProfile.role === "staff") {
+            // If on login page, push to admin. If elsewhere (like user dashboard), stay there.
+            if (pathname === "/") router.push("/admin-dashboard");
+          } else {
+            // Regular user
+            if (pathname === "/" || pathname === "/onboarding") router.push("/user-dashboard");
+          }
         }
-
-        // 5. Intelligent Routing
-        if (userProfile.college === null) {
-          if (pathname !== "/onboarding") router.push("/onboarding");
-        } else if (userProfile.role === "admin" || userProfile.role === "staff") {
-          // Allow admins to stay on student view if they navigated there
-          if (pathname === "/") router.push("/admin-dashboard");
-        } else {
-          if (pathname === "/" || pathname === "/onboarding") router.push("/user-dashboard");
+      } catch (e) {
+        console.error("Profile sync error", e);
+        if (isMounted) {
+          toast({ 
+            title: "Connection Error", 
+            description: "Failed to sync your profile. Please try again.", 
+            variant: "destructive" 
+          });
         }
       }
     }
@@ -229,6 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push("/");
       }
     }
+
     return () => { isMounted = false; };
   }, [firebaseUser, isUserLoading, isInitializing, pathname, db, auth, router, toast]);
 
