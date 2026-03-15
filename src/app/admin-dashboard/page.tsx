@@ -162,7 +162,8 @@ export default function AdminDashboard() {
       let key = "";
 
       if (timeRange === "hourly") {
-        key = date.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+        // FIXED RangeError by providing valid Intl.DateTimeFormatOptions
+        key = date.toLocaleTimeString([], { hour: '2-digit', hour12: true });
       } else if (timeRange === "daily") {
         key = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
       } else if (timeRange === "weekly") {

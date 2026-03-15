@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user: firebaseUser, isUserLoading } = useUser();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeVisitId, setActiveVisitId] = useState<string | null>(null);
-  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
@@ -73,13 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       
-      // Ensure persistence is set before sign-in
+      // CRITICAL: Set persistence BEFORE sign-in for iOS/Safari stability
       await setPersistence(auth, browserLocalPersistence);
       
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       if (isMobile) {
-        // Explicitly use redirect for mobile to avoid popup blockers and cross-site tracking issues
         await signInWithRedirect(auth, provider);
       } else {
         const result = await signInWithPopup(auth, provider);
@@ -106,11 +105,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Main Auth and Profile Synchronizer
+  // 1. Handle Redirect Result (Runs only once on mount)
   useEffect(() => {
     let isMounted = true;
 
-    async function processUser(user: FirebaseUser) {
+    async function handleRedirect() {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user && isMounted) {
+          // If a user just returned from a redirect, the observer (useUser) 
+          // will pick them up shortly, but we've successfully intercepted the flow.
+        }
+      } catch (e: any) {
+        if (e.code !== 'auth/popup-closed-by-user') {
+          console.error("Redirect handler error:", e);
+        }
+      } finally {
+        if (isMounted) setIsInitializing(false);
+      }
+    }
+
+    handleRedirect();
+    return () => { isMounted = false; };
+  }, [auth]);
+
+  // 2. Main Profile Synchronization & Routing
+  useEffect(() => {
+    if (isInitializing || isUserLoading) return;
+
+    let isMounted = true;
+
+    async function syncProfile(user: FirebaseUser) {
       if (!user.email?.endsWith("@neu.edu.ph")) {
         await signOut(auth);
         return;
@@ -174,8 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userProfile.college === null) {
           if (pathname !== "/onboarding") router.push("/onboarding");
         } else if (userProfile.role === "admin" || userProfile.role === "staff") {
-          // Allow admins/staff to visit the user-dashboard if they want, 
-          // but direct them to admin panel if they are at the root or onboarding
+          // Allow admins/staff to visit the user-dashboard manually
           if (pathname === "/" || pathname === "/onboarding") router.push("/admin-dashboard");
         } else {
           // Standard users are restricted to onboarding and dashboard
@@ -184,49 +208,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    async function checkAuthAndProfile() {
-      try {
-        // 1. Handle Redirect Result FIRST (crucial for mobile recovery)
-        const redirectResult = await getRedirectResult(auth);
-        if (redirectResult?.user) {
-          await processUser(redirectResult.user);
-          if (isMounted) setIsProfileLoading(false);
-          return;
-        }
-
-        // 2. Fallback to current user state if no redirect result
-        if (firebaseUser) {
-          await processUser(firebaseUser);
-        } else {
-          if (isMounted) {
-            setProfile(null);
-            setActiveVisitId(null);
-            // Protect private routes
-            const publicRoutes = ["/"];
-            if (!publicRoutes.includes(pathname) && !isUserLoading) {
-              router.push("/");
-            }
-          }
-        }
-      } catch (e: any) {
-        console.error("Auth initialization error:", e);
-      } finally {
-        if (isMounted) setIsProfileLoading(false);
+    if (firebaseUser) {
+      syncProfile(firebaseUser);
+    } else {
+      setProfile(null);
+      setActiveVisitId(null);
+      // Protect private routes
+      const publicRoutes = ["/"];
+      if (!publicRoutes.includes(pathname)) {
+        router.push("/");
       }
     }
 
-    if (!isUserLoading) {
-      checkAuthAndProfile();
-    }
-
     return () => { isMounted = false; };
-  }, [firebaseUser, isUserLoading, pathname, db, auth, router, toast]);
+  }, [firebaseUser, isUserLoading, isInitializing, pathname, db, auth, router, toast]);
 
   return (
     <AuthContext.Provider value={{ 
       user: firebaseUser, 
       profile, 
-      loading: isUserLoading || isProfileLoading, 
+      loading: isUserLoading || isInitializing || (firebaseUser && !profile), 
       signIn, 
       logout,
       activeVisitId,
