@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
@@ -40,12 +39,12 @@ export default function LoginPage() {
 
       {/* Right Section: Login Panel */}
       <div className="flex-1 h-full bg-white flex flex-col items-center justify-center p-6 md:p-12 overflow-y-auto">
-        <div className="w-full max-w-sm flex flex-col items-center space-y-12">
+        <div className="w-full max-w-sm flex flex-col items-center justify-center space-y-12">
           {/* Logo Container */}
-          <div className="relative w-full aspect-square max-w-[240px] flex items-center justify-center group">
+          <div className="relative w-full aspect-square max-w-[240px] flex items-center justify-center group overflow-hidden rounded-full">
             <div className="absolute inset-0 bg-[#0B3D73]/5 rounded-full scale-110 group-hover:scale-125 transition-transform duration-500 blur-2xl" />
             {logoImage ? (
-              <div className="relative w-full h-full">
+              <div className="relative w-48 h-48 md:w-56 md:h-56">
                 <Image
                   src={logoImage.imageUrl}
                   alt={logoImage.description}
