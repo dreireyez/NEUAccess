@@ -8,7 +8,9 @@ import {
   getRedirectResult,
   signOut, 
   User as FirebaseUser,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  setPersistence,
+  browserLocalPersistence
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc, limit } from "firebase/firestore";
 import { useAuth as useFirebaseAuth, useFirestore, useUser } from "@/firebase";
@@ -72,10 +74,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       
-      // Detect mobile device to choose between popup and redirect
+      // Ensure persistence is set to local
+      await setPersistence(auth, browserLocalPersistence);
+      
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       if (isMobile) {
+        // Use redirect for mobile to avoid popup blockers and issues with session persistence in mobile browsers
         await signInWithRedirect(auth, provider);
       } else {
         const result = await signInWithPopup(auth, provider);
@@ -92,7 +97,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error: any) {
-      // Suppress the error if the user just closed the popup
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-closure-interaction') {
         return;
       }
@@ -108,16 +112,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Handle Redirect Results (Primary for Mobile)
   useEffect(() => {
+    let isMounted = true;
     const handleRedirect = async () => {
       try {
         const result = await getRedirectResult(auth);
-        if (result?.user && !result.user.email?.endsWith("@neu.edu.ph")) {
-          await signOut(auth);
-          toast({
-            title: "Access Denied",
-            description: "Please use your institutional @neu.edu.ph email.",
-            variant: "destructive",
-          });
+        if (result?.user && isMounted) {
+          if (!result.user.email?.endsWith("@neu.edu.ph")) {
+            await signOut(auth);
+            toast({
+              title: "Access Denied",
+              description: "Please use your institutional @neu.edu.ph email.",
+              variant: "destructive",
+            });
+          }
         }
       } catch (error: any) {
         if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-closure-interaction') {
@@ -127,11 +134,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     
     handleRedirect();
+    return () => { isMounted = false; };
   }, [auth, toast]);
 
   useEffect(() => {
     async function checkProfile() {
       if (firebaseUser) {
+        // Verification for institutional email
         if (!firebaseUser.email?.endsWith("@neu.edu.ph")) {
           await logout();
           return;
@@ -165,6 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userProfile = userSnap.data() as UserProfile;
         }
 
+        // Blocked account check
         if (userProfile.isBlocked) {
           await logout();
           toast({
@@ -177,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setProfile(userProfile);
 
+        // Check for active library visits
         const visitsQuery = query(
           collection(db, "visits"),
           where("userId", "==", firebaseUser.uid),
@@ -188,22 +199,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setActiveVisitId(visitSnap.docs[0].id);
         }
 
+        // Dashboard Routing Logic
         if (userProfile.college === null) {
           if (pathname !== "/onboarding") {
             router.push("/onboarding");
           }
-        } else if (userProfile.role === "user") {
-          if (pathname === "/" || pathname === "/onboarding" || pathname === "/admin-dashboard") {
-            router.push("/user-dashboard");
-          }
         } else if (userProfile.role === "admin" || userProfile.role === "staff") {
+          // If admin/staff, stay where they are if they're on a dashboard, 
+          // but move from login/onboarding to admin panel.
           if (pathname === "/" || pathname === "/onboarding") {
             router.push("/admin-dashboard");
+          }
+        } else {
+          // Normal student routing
+          if (pathname === "/" || pathname === "/onboarding" || pathname === "/admin-dashboard") {
+            router.push("/user-dashboard");
           }
         }
       } else {
         setProfile(null);
         setActiveVisitId(null);
+        // If no user and not on login page, force back to login
         if (pathname !== "/" && !isUserLoading) {
           router.push("/");
         }
