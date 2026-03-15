@@ -80,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       if (isMobile) {
+        // Explicitly use redirect for mobile to avoid popup blockers
         await signInWithRedirect(auth, provider);
       } else {
         const result = await signInWithPopup(auth, provider);
