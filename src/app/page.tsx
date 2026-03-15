@@ -4,10 +4,18 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Loader2 } from "lucide-react";
+import { Loader2, ExternalLink, ShieldAlert } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function LoginPage() {
-  const { signIn, loading } = useAuth();
+  const { signIn, loading, isPopupBlocked, setIsPopupBlocked } = useAuth();
   
   const logoImage = PlaceHolderImages.find(img => img.id === 'university-logo');
   const heroImage = PlaceHolderImages.find(img => img.id === 'login-hero');
@@ -41,7 +49,7 @@ export default function LoginPage() {
       {/* Right Section: Login Panel */}
       <div className="flex-1 h-full bg-white flex flex-col items-center justify-center p-6 md:p-12 overflow-y-auto">
         <div className="w-full max-w-sm flex flex-col items-center justify-center space-y-12">
-          {/* Logo Container - Centered and Constrained */}
+          {/* Logo Container */}
           <div className="relative w-full aspect-square max-w-[200px] md:max-w-[240px] flex items-center justify-center group overflow-hidden rounded-full mx-auto">
             <div className="absolute inset-0 bg-[#0B3D73]/5 rounded-full scale-110 group-hover:scale-125 transition-transform duration-500 blur-2xl" />
             {logoImage ? (
@@ -107,6 +115,37 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Popup Blocked Dialog */}
+      <Dialog open={isPopupBlocked} onOpenChange={setIsPopupBlocked}>
+        <DialogContent className="rounded-3xl border-none shadow-2xl p-8 max-w-sm mx-auto">
+          <DialogHeader className="items-center text-center space-y-4">
+            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center">
+              <ShieldAlert className="w-10 h-10 text-[#D4AF37]" />
+            </div>
+            <DialogTitle className="text-2xl font-black text-[#0B3D73] font-headline">Sign-In Blocked</DialogTitle>
+            <DialogDescription className="text-slate-500 font-medium leading-relaxed">
+              Your browser blocked the sign-in window. Please click the button below to open it manually.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6 flex flex-col gap-3">
+            <Button 
+              onClick={signIn} 
+              className="w-full h-14 neu-button-gold rounded-2xl font-black text-lg gap-3"
+            >
+              <ExternalLink className="w-5 h-5" />
+              Open Window
+            </Button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setIsPopupBlocked(false)}
+              className="w-full text-slate-400 font-bold"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

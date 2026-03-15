@@ -30,6 +30,8 @@ interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
+  isPopupBlocked: boolean;
+  setIsPopupBlocked: (blocked: boolean) => void;
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
   activeVisitId: string | null;
@@ -45,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeVisitId, setActiveVisitId] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isPopupBlocked, setIsPopupBlocked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
@@ -69,18 +72,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async () => {
+    setIsPopupBlocked(false);
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       
-      // CRITICAL: Set persistence BEFORE sign-in for iOS/Safari stability
       await setPersistence(auth, browserLocalPersistence);
       
       const ua = navigator.userAgent;
       const isIOS = /iPhone|iPad|iPod/i.test(ua);
       const isAndroid = /Android/i.test(ua);
       
-      // HYBRID APPROACH: Popup for iOS (avoids ITP redirect issues), Redirect for Android
+      // Hybrid: Popup for iOS, Redirect for Android
       if (isIOS) {
         const result = await signInWithPopup(auth, provider);
         handlePostSignIn(result.user);
@@ -92,6 +95,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         handlePostSignIn(result.user);
       }
     } catch (error: any) {
+      if (error.code === 'auth/popup-blocked') {
+        setIsPopupBlocked(true);
+        return;
+      }
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-closure-interaction') {
         return;
       }
@@ -116,10 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // 1. Handle Redirect Result (Runs only once on mount)
   useEffect(() => {
     let isMounted = true;
-
     async function handleRedirect() {
       try {
         const result = await getRedirectResult(auth);
@@ -127,22 +132,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           handlePostSignIn(result.user);
         }
       } catch (e: any) {
-        if (e.code !== 'auth/popup-closed-by-user') {
+        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/popup-blocked') {
           console.error("Redirect handler error:", e);
         }
       } finally {
         if (isMounted) setIsInitializing(false);
       }
     }
-
     handleRedirect();
     return () => { isMounted = false; };
   }, [auth]);
 
-  // 2. Main Profile Synchronization & Routing
   useEffect(() => {
     if (isInitializing || isUserLoading) return;
-
     let isMounted = true;
 
     async function syncProfile(user: FirebaseUser) {
@@ -157,79 +159,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let userProfile: UserProfile;
 
       if (!userSnap.exists()) {
-        // STRICT ENFORCEMENT: New users are ALWAYS students/users
         userProfile = {
           id: user.uid,
           email: user.email!,
-          role: "user", 
+          role: "user", // STRICTOR: Default is always student
           college: null,
           isBlocked: false,
           displayName: user.displayName || "Student",
           photoURL: user.photoURL || "",
         };
-        
         try {
           await setDoc(userRef, {
             ...userProfile,
             createdAt: serverTimestamp(),
           });
-        } catch (e) {
-          console.error("Failed to create profile", e);
-        }
+        } catch (e) { console.error("Profile creation failed", e); }
       } else {
         userProfile = userSnap.data() as UserProfile;
       }
 
       if (userProfile.isBlocked) {
         await signOut(auth);
-        toast({
-          title: "Access Denied",
-          description: "Account blocked. Contact admin.",
-          variant: "destructive",
-        });
+        toast({ title: "Access Denied", description: "Account blocked.", variant: "destructive" });
         return;
       }
 
       if (isMounted) {
         setProfile(userProfile);
-
-        // Check for active library visits
-        const visitsQuery = query(
-          collection(db, "visits"),
-          where("userId", "==", user.uid),
-          where("status", "==", "active"),
-          limit(1)
-        );
+        const visitsQuery = query(collection(db, "visits"), where("userId", "==", user.uid), where("status", "==", "active"), limit(1));
         const visitSnap = await getDocs(visitsQuery);
-        if (!visitSnap.empty) {
-          setActiveVisitId(visitSnap.docs[0].id);
-        }
+        if (!visitSnap.empty) setActiveVisitId(visitSnap.docs[0].id);
 
-        // Navigation Routing Logic
         if (userProfile.college === null) {
           if (pathname !== "/onboarding") router.push("/onboarding");
         } else if (userProfile.role === "admin" || userProfile.role === "staff") {
-          // Allow admins/staff to visit the user-dashboard manually
           if (pathname === "/" || pathname === "/onboarding") router.push("/admin-dashboard");
         } else {
-          // Standard users are restricted to onboarding and dashboard
           if (pathname === "/" || pathname === "/onboarding") router.push("/user-dashboard");
         }
       }
     }
 
-    if (firebaseUser) {
-      syncProfile(firebaseUser);
-    } else {
+    if (firebaseUser) syncProfile(firebaseUser);
+    else {
       setProfile(null);
       setActiveVisitId(null);
-      // Protect private routes
-      const publicRoutes = ["/"];
-      if (!publicRoutes.includes(pathname)) {
-        router.push("/");
-      }
+      if (pathname !== "/") router.push("/");
     }
-
     return () => { isMounted = false; };
   }, [firebaseUser, isUserLoading, isInitializing, pathname, db, auth, router, toast]);
 
@@ -238,6 +214,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: firebaseUser, 
       profile, 
       loading: isUserLoading || isInitializing || (firebaseUser && !profile), 
+      isPopupBlocked,
+      setIsPopupBlocked,
       signIn, 
       logout,
       activeVisitId,
