@@ -139,16 +139,17 @@ export default function UserDashboard() {
             <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
               <BookOpen className="w-6 h-6 text-[#D4AF37]" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <h1 className="text-xl font-black font-headline leading-tight">NEU Access</h1>
               <p className="text-[10px] opacity-70 uppercase tracking-widest font-black">University Library Hub</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             {isAdminOrStaff && (
               <Link href="/admin-dashboard">
-                <Button variant="ghost" className="text-white hover:bg-white/10 rounded-2xl hidden md:flex font-bold">
-                  <ShieldCheck className="w-4 h-4 mr-2 text-[#D4AF37]" /> Admin Panel
+                <Button variant="ghost" className="text-white hover:bg-white/10 rounded-2xl flex font-bold px-3 md:px-4">
+                  <ShieldCheck className="w-4 h-4 md:mr-2 text-[#D4AF37]" /> 
+                  <span className="hidden md:inline">Admin Panel</span>
                 </Button>
               </Link>
             )}
@@ -158,10 +159,11 @@ export default function UserDashboard() {
             </div>
             <Button 
               onClick={logout} 
-              className="bg-white text-[#0B3D73] hover:bg-rose-600 hover:text-white rounded-2xl px-6 font-bold h-10 transition-all border-none shadow-md flex items-center gap-2"
+              className="bg-white text-[#0B3D73] hover:bg-rose-600 hover:text-white rounded-2xl px-4 md:px-6 font-bold h-10 transition-all border-none shadow-md flex items-center gap-2"
             >
               <LogOut className="w-4 h-4" /> 
-              <span>Sign Out</span>
+              <span className="hidden sm:inline">Sign Out</span>
+              <span className="sm:hidden">Exit</span>
             </Button>
           </div>
         </div>
