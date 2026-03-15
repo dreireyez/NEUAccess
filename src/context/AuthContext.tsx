@@ -80,20 +80,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       if (isMobile) {
-        // Explicitly use redirect for mobile to avoid popup blockers
+        // Explicitly use redirect for mobile to avoid popup blockers and cross-site tracking issues
         await signInWithRedirect(auth, provider);
       } else {
         const result = await signInWithPopup(auth, provider);
-        const user = result.user;
-
-        if (!user.email?.endsWith("@neu.edu.ph")) {
+        if (result.user && !result.user.email?.endsWith("@neu.edu.ph")) {
           await signOut(auth);
           toast({
             title: "Access Denied",
             description: "Please use your institutional @neu.edu.ph email.",
             variant: "destructive",
           });
-          return;
         }
       }
     } catch (error: any) {
@@ -116,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function processUser(user: FirebaseUser) {
       if (!user.email?.endsWith("@neu.edu.ph")) {
-        await logout();
+        await signOut(auth);
         return;
       }
 
@@ -150,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (userProfile.isBlocked) {
-        await logout();
+        await signOut(auth);
         toast({
           title: "Access Denied",
           description: "Account blocked. Contact admin.",
@@ -174,13 +171,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setActiveVisitId(visitSnap.docs[0].id);
         }
 
-        // Navigation Routing
+        // Navigation Routing Logic
         if (userProfile.college === null) {
           if (pathname !== "/onboarding") router.push("/onboarding");
         } else if (userProfile.role === "admin" || userProfile.role === "staff") {
-          // Admins can stay on dashboards
+          // Allow admins/staff to visit the user-dashboard if they want, 
+          // but direct them to admin panel if they are at the root or onboarding
           if (pathname === "/" || pathname === "/onboarding") router.push("/admin-dashboard");
         } else {
+          // Standard users are restricted to onboarding and dashboard
           if (pathname === "/" || pathname === "/onboarding") router.push("/user-dashboard");
         }
       }
@@ -188,30 +187,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function checkAuthAndProfile() {
       try {
-        // 1. Handle Redirect Result FIRST (crucial for mobile)
+        // 1. Handle Redirect Result FIRST (crucial for mobile recovery)
         const redirectResult = await getRedirectResult(auth);
-        if (redirectResult?.user && isMounted) {
+        if (redirectResult?.user) {
           await processUser(redirectResult.user);
           if (isMounted) setIsProfileLoading(false);
           return;
         }
 
-        // 2. Fallback to current user state
+        // 2. Fallback to current user state if no redirect result
         if (firebaseUser) {
           await processUser(firebaseUser);
         } else {
           if (isMounted) {
             setProfile(null);
             setActiveVisitId(null);
-            // Only redirect to home if we're not already there and not currently loading
-            if (pathname !== "/" && !isUserLoading) {
+            // Protect private routes
+            const publicRoutes = ["/"];
+            if (!publicRoutes.includes(pathname) && !isUserLoading) {
               router.push("/");
             }
           }
         }
       } catch (e: any) {
-        console.error("Auth check error:", e);
-        // Still set loading to false to avoid blocking the UI
+        console.error("Auth initialization error:", e);
       } finally {
         if (isMounted) setIsProfileLoading(false);
       }
