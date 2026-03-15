@@ -1,8 +1,11 @@
+
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   User as FirebaseUser,
   GoogleAuthProvider
@@ -46,7 +49,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
 
   const logout = async () => {
-    // Before signing out, check if there's an active visit to time out
     if (activeVisitId) {
       try {
         const visitRef = doc(db, "visits", activeVisitId);
@@ -68,19 +70,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      provider.setCustomParameters({ prompt: 'select_account' });
+      
+      // Detect mobile device to choose between popup and redirect
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        await signInWithRedirect(auth, provider);
+      } else {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
 
-      if (!user.email?.endsWith("@neu.edu.ph")) {
-        await signOut(auth);
-        toast({
-          title: "Access Denied",
-          description: "Please use your institutional @neu.edu.ph email.",
-          variant: "destructive",
-        });
-        return;
+        if (!user.email?.endsWith("@neu.edu.ph")) {
+          await signOut(auth);
+          toast({
+            title: "Access Denied",
+            description: "Please use your institutional @neu.edu.ph email.",
+            variant: "destructive",
+          });
+          return;
+        }
       }
     } catch (error: any) {
+      // Suppress the error if the user just closed the popup
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-closure-interaction') {
+        return;
+      }
+      
       console.error("Sign in error", error);
       toast({
         title: "Sign-in Failed",
@@ -89,6 +105,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }
   };
+
+  // Handle Redirect Results (Primary for Mobile)
+  useEffect(() => {
+    const handleRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user && !result.user.email?.endsWith("@neu.edu.ph")) {
+          await signOut(auth);
+          toast({
+            title: "Access Denied",
+            description: "Please use your institutional @neu.edu.ph email.",
+            variant: "destructive",
+          });
+        }
+      } catch (error: any) {
+        if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-closure-interaction') {
+          console.error("Redirect auth error", error);
+        }
+      }
+    };
+    
+    handleRedirect();
+  }, [auth, toast]);
 
   useEffect(() => {
     async function checkProfile() {
@@ -138,7 +177,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setProfile(userProfile);
 
-        // Check for active visit
         const visitsQuery = query(
           collection(db, "visits"),
           where("userId", "==", firebaseUser.uid),
@@ -150,18 +188,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setActiveVisitId(visitSnap.docs[0].id);
         }
 
-        // Updated Routing Logic: Admins can access both.
         if (userProfile.college === null) {
           if (pathname !== "/onboarding") {
             router.push("/onboarding");
           }
         } else if (userProfile.role === "user") {
-          // Force students to user-dashboard
           if (pathname === "/" || pathname === "/onboarding" || pathname === "/admin-dashboard") {
             router.push("/user-dashboard");
           }
         } else if (userProfile.role === "admin" || userProfile.role === "staff") {
-          // Admins can stay on user-dashboard OR admin-dashboard.
           if (pathname === "/" || pathname === "/onboarding") {
             router.push("/admin-dashboard");
           }
