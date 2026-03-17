@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Sun,
   Moon,
+  Timer,
 } from "lucide-react";
 import { 
   Table, 
@@ -74,7 +75,7 @@ export default function UserDashboard() {
   }, [db, profile]);
 
   const { data: visits } = useCollection(visitsQuery);
-  const [stats, setStats] = useState({ totalVisits: 0, favoriteReason: "N/A" });
+  const [stats, setStats] = useState({ totalVisits: 0, favoriteReason: "N/A", avgDuration: "0m" });
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
@@ -92,21 +93,37 @@ export default function UserDashboard() {
   };
 
   useEffect(() => {
-    const list = visits || [];
-    if (list.length === 0) return;
+    const list = (visits || []).filter((v: any) => v.status !== 'deleted');
+    if (list.length === 0) {
+      setStats({ totalVisits: 0, favoriteReason: "N/A", avgDuration: "0m" });
+      return;
+    }
 
-    const activeList = list.filter((v: any) => v.status !== 'deleted');
+    const completedVisits = list.filter((v: any) => v.status === 'completed' && v.timeIn && v.timeOut);
+    
+    // Calculate Reasons
     const counts: Record<string, number> = {};
-    activeList.forEach((v: any) => {
+    list.forEach((v: any) => {
       if (Array.isArray(v.reasons)) {
         v.reasons.forEach((r: string) => { counts[r] = (counts[r] || 0) + 1; });
       }
     });
-    
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const sortedReasons = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+    // Calculate Average Duration
+    let totalMins = 0;
+    completedVisits.forEach((v: any) => {
+      const start = v.timeIn.toDate();
+      const end = v.timeOut.toDate();
+      totalMins += (end.getTime() - start.getTime()) / 60000;
+    });
+    const avgMins = completedVisits.length > 0 ? Math.round(totalMins / completedVisits.length) : 0;
+    const formattedAvg = avgMins >= 60 ? `${Math.floor(avgMins / 60)}h ${avgMins % 60}m` : `${avgMins}m`;
+
     setStats({
-      totalVisits: activeList.filter((v: any) => v.status === 'completed').length,
-      favoriteReason: sorted.length > 0 ? sorted[0][0] : "N/A"
+      totalVisits: completedVisits.length,
+      favoriteReason: sortedReasons.length > 0 ? sortedReasons[0][0] : "N/A",
+      avgDuration: formattedAvg
     });
   }, [visits]);
 
@@ -249,7 +266,7 @@ export default function UserDashboard() {
           </section>
         )}
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <Card className="rounded-[2.5rem] border-none shadow-xl overflow-hidden group hover:shadow-2xl transition-all dark:bg-slate-900">
             <div className="h-3 neu-bg-blue w-full" />
             <CardHeader className="flex flex-row items-center justify-between p-8 pb-4">
@@ -258,6 +275,16 @@ export default function UserDashboard() {
             </CardHeader>
             <CardContent className="px-8 pb-8">
               <div className="text-6xl font-black text-[#0B3D73] dark:text-white">{stats.totalVisits}</div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-[2.5rem] border-none shadow-xl overflow-hidden group hover:shadow-2xl transition-all dark:bg-slate-900">
+            <div className="h-3 bg-emerald-600 w-full" />
+            <CardHeader className="flex flex-row items-center justify-between p-8 pb-4">
+              <CardTitle className="text-xs font-black text-slate-400 uppercase tracking-widest">Average Stay</CardTitle>
+              <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center"><Timer className="w-5 h-5 text-emerald-600 dark:text-emerald-300" /></div>
+            </CardHeader>
+            <CardContent className="px-8 pb-8">
+              <div className="text-6xl font-black text-emerald-600 dark:text-emerald-300">{stats.avgDuration}</div>
             </CardContent>
           </Card>
           <Card className="rounded-[2.5rem] border-none shadow-xl overflow-hidden group hover:shadow-2xl transition-all dark:bg-slate-900">
