@@ -69,7 +69,7 @@ export default function LoginPage() {
           </div>
           
           <div className="space-y-4 text-center w-full">
-            <h2 className="text-4xl font-black text-[#0B3D73] font-headline tracking-tight">Welcome Back</h2>
+            <h2 className="text-4xl font-black text-[#0B3D73] font-headline tracking-tight">Welcome Back!</h2>
             <p className="text-slate-500 font-medium text-balance">Sign in using your institutional account to continue.</p>
           </div>
 
