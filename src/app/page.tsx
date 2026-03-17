@@ -4,7 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Loader2, ExternalLink, ShieldAlert } from "lucide-react";
+import { Loader2, ExternalLink, ShieldAlert, RotateCcw } from "lucide-react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,12 +14,42 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { clearStuckAuthState } from "@/lib/auth-recovery";
+import { useAuth as useFirebaseAuth } from "@/firebase";
 
 export default function LoginPage() {
-  const { signIn, loading, isPopupBlocked, setIsPopupBlocked } = useAuth();
+  const { signIn, loading, isPopupBlocked, setIsPopupBlocked, user } = useAuth();
+  const auth = useFirebaseAuth();
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [showRecoveryOption, setShowRecoveryOption] = useState(false);
   
   const logoImage = PlaceHolderImages.find(img => img.id === 'university-logo');
   const heroImage = PlaceHolderImages.find(img => img.id === 'login-hero');
+
+  // Show recovery option if stuck loading for too long
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (loading) {
+      timeout = setTimeout(() => {
+        setShowRecoveryOption(true);
+      }, 10000);
+    } else {
+      setShowRecoveryOption(false);
+    }
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
+  const handleRecovery = async () => {
+    setIsRecovering(true);
+    try {
+      await clearStuckAuthState(auth);
+      // Reload page to restart auth
+      window.location.href = '/';
+    } catch (e) {
+      console.error("Recovery failed:", e);
+      setIsRecovering(false);
+    }
+  };
 
   return (
     <main className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white">
@@ -76,13 +107,18 @@ export default function LoginPage() {
           <div className="w-full space-y-6">
             <Button
               onClick={signIn}
-              disabled={loading}
+              disabled={loading || isRecovering}
               className="w-full h-16 neu-button-gold text-lg font-bold flex items-center justify-center gap-4 rounded-3xl shadow-2xl hover:translate-y-[-2px] transition-all"
             >
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-6 h-6 animate-spin text-[#0B3D73]" />
                   <span>Verifying Session...</span>
+                </div>
+              ) : isRecovering ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#0B3D73]" />
+                  <span>Recovering...</span>
                 </div>
               ) : (
                 <>
@@ -108,6 +144,17 @@ export default function LoginPage() {
                 </>
               )}
             </Button>
+
+            {showRecoveryOption && !loading && !isRecovering && (
+              <Button
+                onClick={handleRecovery}
+                variant="outline"
+                className="w-full h-12 border-2 border-amber-300 text-[#0B3D73] font-bold rounded-2xl hover:bg-amber-50 gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Stuck? Reset Sign-in
+              </Button>
+            )}
 
             <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-[0.2em] pt-4">
               University Library Rules & Regulations Apply
