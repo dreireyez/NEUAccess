@@ -1,6 +1,6 @@
 # NEU Access - Library Visitor Monitoring System
 
-> **Live Preview:** [Insert Production/Staging URL Here]
+> **Live Preview:** https://9000-firebase-studio-1773507394175.cluster-yylgzpipxrar4v4a72liastuqy.cloudworkstations.dev
 
 ## Description
 
