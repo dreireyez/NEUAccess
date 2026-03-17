@@ -423,7 +423,7 @@ export default function AdminDashboard() {
                   { label: "Daily Total", val: stats.today, color: "neu-bg-blue", icon: Clock },
                   { label: "Weekly Total", val: stats.week, color: "bg-emerald-600", icon: TrendingUp },
                   { label: "Total Visits", val: stats.month, color: "bg-amber-600", icon: History },
-                  { label: "Avg Duration", val: stats.avgDuration, color: "bg-purple-600", icon: Clock },
+                  { label: "Average Stay", val: stats.avgDuration, color: "bg-purple-600", icon: Clock },
                 ].map((s, i) => (
                   <Card key={i} className="bg-white dark:bg-slate-900 border-none shadow-xl rounded-3xl overflow-hidden">
                     <div className={cn("h-2 w-full", s.color)} />
